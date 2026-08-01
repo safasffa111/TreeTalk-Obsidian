@@ -1,58 +1,116 @@
 # TreeTalk for Obsidian
 
-TreeTalk 是一个以 Obsidian 为载体的树状 AI 对话插件。每个标签页都是独立对话空间，可以继续当前节点，也可以从任意节点创建分支，并把有价值的回答、选段和完整对话树沉淀到 Markdown 笔记中。
+TreeTalk 是一款运行在 Obsidian 中的树状 AI 对话插件。
 
-## 0.9.0：社区发布候选版
-
-- 当前公开版本只使用完整模式，发送当前根节点到活动节点的完整对话分支，不发送兄弟分支。
-- 设置页不包含上下文模式切换入口；从旧测试版升级时，旧模式设置会自动恢复为完整模式。
-- 修复单行用户消息气泡高度，使气泡贴合实际文字。
-- 完成 Obsidian 公开稳定版兼容、隐私披露、发布资产检查和社区发布准备。
+你可以从问题、回答或笔记选段继续追问，把不同思路拆成互不干扰的分支，并将有价值的内容沉淀为普通 Markdown 笔记。
 
 ## 主要功能
 
-- 在 Obsidian 右侧栏中并排显示树状节点列表和当前对话。
-- 每个标签页是独立对话空间，可展开、切换和恢复。
-- 使用 `Alt + F` 切换“继续当前节点 / 创建子分支”。
-- 框选 TreeTalk 中的问题或回答后，可精确到字符地创建追问并保留来源痕迹。
-- 在当前 Markdown 笔记中框选文字，也可加入本轮上下文。
-- 问题和回答使用 Obsidian 原生 Markdown 渲染，支持标题、列表、表格、代码块、内部链接和 LaTeX。
-- 支持流式回复、停止生成、后台对话继续生成，以及失败和中断恢复。
-- 支持把单条回答或完整对话树沉淀到 Markdown 笔记。
-- 历史对话支持搜索、打开、恢复和永久删除。
-- 支持 OpenAI、DeepSeek、Anthropic、Gemini 和 OpenAI 兼容 API。
-- API Key 使用 Obsidian SecretStorage 保存，不写入普通笔记。
+### 冻结压缩对话和缓存命中规范
 
-## 隐私、网络与账户要求
+通过利用同一的markdown规范，裁剪历史上下文并冻结的方式，实现压缩文本的同时提高缓存命中
 
-TreeTalk 不会收集遥测，不包含广告，也不会把对话或 API Key 发送给 TreeTalk 自有服务器。
+### 链接保存与纯 Markdown 知识沉淀
 
-使用 AI 对话功能需要用户自行配置所选服务商的 API Key、模型与接口。发送消息时，当前问题以及当前活动分支的上下文会直接发送到用户选择的 OpenAI、DeepSeek、Anthropic、Gemini 或 OpenAI 兼容 API。数据如何被处理取决于对应服务商的条款与隐私政策。
+你可以沉淀单条回答，也可以沉淀整棵对话树。
 
-API Key 使用 Obsidian SecretStorage 保存，不写入普通 Markdown 笔记。活动对话和历史对话保存在当前 Vault 的 `.obsidian/treetalk-data/`；只有用户主动沉淀的回答、节点笔记和对话树会写入普通 Markdown 文件。
+当你沉淀整个对话树的时候，TreeTalk会通过你引用的笔记与节点间的层级关系自动生成WikiLink
 
-TreeTalk 不要求注册 TreeTalk 账户，不提供内购或付费订阅。API 服务费用由用户与所选模型服务商直接结算。
+沉淀结果包含普通 Markdown 和 WikiLink，生成后的笔记可以自由编辑、移动和整理。
+
+
+### 树状 AI 对话
+
+每次追问都可以继续当前节点，也可以创建新的子分支。
+
+不同分支拥有各自的上下文。点击树上的任意节点，即可回到对应的讨论位置，不必在一条很长的聊天记录中反复翻找。
+
+### 精确框选追问
+
+你可以直接框选：
+
+* TreeTalk 中的问题或回答
+* Obsidian 笔记中的文字
+* 列表、代码块、表格和公式
+
+框选内容会成为本轮重点上下文，并在原位置留下可点击的 WikiLink，方便以后返回对应的 TreeTalk 节点。
+
+### 与 Obsidian 笔记结合
+
+从笔记中发起追问时，TreeTalk 可以读取当前笔记，并围绕你框选的内容回答。
+
+TreeTalk 中选中的内容也可以拖入 Markdown 编辑器，生成引用块和返回来源节点的链接。
+
+### 多模型支持
+
+当前支持：
+
+* OpenAI
+* DeepSeek
+* Anthropic
+* Gemini
+* OpenAI 兼容接口
+
+* 建议主要使用deepseek
 
 ## 安装
 
-发布到 Obsidian 社区目录后，可直接在“设置 → 第三方插件 → 浏览”中搜索 TreeTalk 安装。
+TreeTalk 当前仅支持桌面端，需要 Obsidian `1.13.0` 或更高版本。
 
-手动安装时，将 GitHub Release 中的 `main.js`、`manifest.json` 和 `styles.css` 复制到：
+1. 打开仓库的 **Releases** 页面。
+2. 下载最新版本的 TreeTalk 插件安装包 ZIP。
+3. 解压 ZIP，得到 TreeTalk 插件文件夹。
+4. 将解压后的文件夹重命名为：
 
 ```text
-<你的 Vault>/.obsidian/plugins/treetalk/
+treetalk
 ```
 
-重新加载 Obsidian，在“设置 → 第三方插件”中启用 TreeTalk，然后在“设置 → TreeTalk”填写服务类型、模型和 API Key。
+5. 将整个文件夹放入当前 Obsidian 仓库：
 
-## 开发验证
-
-```bash
-npm ci
-npm run verify
+```text
+<Vault>/.obsidian/plugins/treetalk/
 ```
 
-发布版本要求 `manifest.json`、`package.json`、`versions.json` 与 GitHub Release 标签保持一致。
+安装完成后的目录应类似：
+
+```text
+<Vault>/.obsidian/plugins/treetalk/
+├── main.js
+├── manifest.json
+├── styles.css
+└── README.md
+```
+
+6. 重新启动 Obsidian，或重新加载第三方插件。
+7. 打开“设置 → 第三方插件”，启用 TreeTalk。
+8. 打开“设置 → TreeTalk”，选择模型服务并填写 API Key。
+
+> 如果看不到 `.obsidian` 文件夹，请先在系统文件管理器中开启“显示隐藏文件”。
+
+## 快速开始
+
+1. 点击 Obsidian 侧边栏中的 TreeTalk 图标。
+2. 新建一个对话并发送问题。
+3. 正常发送会继续当前节点。
+4. 创建子分支，围绕同一问题探索不同方向。
+5. 框选 TreeTalk 回答或 Obsidian 笔记内容，基于选段继续追问。
+6. 点击“沉淀回答”或“沉淀对话树”，将有价值的内容保存为 Markdown。
+
+## 数据与隐私
+
+TreeTalk 的活动对话和历史对话保存在当前 Vault 的插件数据目录中，不会自动出现在普通笔记、搜索结果和关系图谱中。
+
+只有你主动沉淀的内容，才会生成普通 Markdown 笔记。
+
+API Key 使用 Obsidian 的 SecretStorage 保存，不会写入普通笔记。
+
+## 当前版本
+
+**TreeTalk 0.8.23**
+
+这是 TreeTalk 面向大众发布的首个版本。欢迎提交使用反馈、功能建议和问题报告。
+
 
 ## License
 
