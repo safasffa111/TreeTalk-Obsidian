@@ -111,7 +111,3 @@ API Key 使用 Obsidian 的 SecretStorage 保存，不会写入普通笔记。
 
 这是 TreeTalk 面向大众发布的首个版本。欢迎提交使用反馈、功能建议和问题报告。
 
-
-## License
-
-TreeTalk 使用 MIT License。详见 [LICENSE](LICENSE)。
