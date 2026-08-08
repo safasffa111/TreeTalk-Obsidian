@@ -1,0 +1,6 @@
+node_modules/
+.worktrees/
+*.log
+.obsidian/
+AI-HANDOFF-*.md
+docs/

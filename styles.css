@@ -1,0 +1,1590 @@
+.treetalk-root {
+  height: 100%;
+}
+
+.treetalk-view-content {
+  padding: 0;
+  overflow: hidden;
+  background: var(--background-primary);
+}
+
+.treetalk-workspace {
+  --treetalk-tree-width: 220px;
+  display: grid;
+  grid-template-columns: var(--treetalk-tree-width) 1px minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--background-primary);
+}
+
+.treetalk-workspace-tree {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--background-primary);
+}
+
+.treetalk-workspace-conversation {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--background-primary);
+}
+
+.treetalk-conversation-mount {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.treetalk-empty-state {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.treetalk-empty-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+button.treetalk-empty-action {
+  appearance: none;
+  margin: 0;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 5px;
+  box-shadow: none;
+  color: var(--text-accent);
+  background: transparent;
+  font: inherit;
+  font-size: var(--font-ui-medium);
+}
+
+button.treetalk-empty-action:hover,
+button.treetalk-empty-action:focus-visible {
+  color: var(--text-accent-hover);
+  background: var(--background-modifier-hover);
+}
+
+button.treetalk-empty-action:disabled {
+  color: var(--text-faint);
+  background: transparent;
+  cursor: default;
+}
+
+.treetalk-resizer {
+  position: relative;
+  width: 1px;
+  height: 100%;
+  align-self: stretch;
+  cursor: col-resize;
+  touch-action: none;
+  background: var(--background-modifier-border);
+  transition: background-color 120ms ease;
+}
+
+.treetalk-resizer::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  right: -4px;
+  bottom: 0;
+  left: -4px;
+  background: transparent;
+}
+
+.treetalk-resizer:hover,
+.treetalk-resizer.is-resizing {
+  background: var(--interactive-accent);
+}
+
+.treetalk-conversation-mount > .treetalk-conversation {
+  height: 100%;
+}
+
+.treetalk-workspace-tree > .treetalk-tree {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+}
+
+.treetalk-tree,
+.treetalk-conversation {
+  --treetalk-selection-trace-bg: color-mix(
+    in srgb,
+    var(--interactive-accent) 32%,
+    transparent
+  );
+  --treetalk-selection-trace-hover-bg: color-mix(
+    in srgb,
+    var(--interactive-accent) 42%,
+    transparent
+  );
+  --treetalk-selection-source-bg: color-mix(
+    in srgb,
+    var(--interactive-accent) 28%,
+    transparent
+  );
+  height: 100%;
+  color: var(--text-normal);
+  background: var(--background-primary);
+}
+
+.treetalk-tree-list {
+  padding: 4px 6px;
+}
+
+.treetalk-space-switcher {
+  min-width: 0;
+  flex: 0 0 auto;
+  padding: 4px 6px 0;
+}
+
+button.treetalk-space-trigger {
+  appearance: none;
+  display: flex;
+  width: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  margin: 0;
+  padding: 3px 6px;
+  border: 0 !important;
+  border-radius: 3px;
+  box-shadow: none !important;
+  outline: 0 !important;
+  color: var(--text-normal);
+  background: transparent !important;
+  text-align: left;
+  font: inherit;
+}
+
+button.treetalk-space-trigger:hover {
+  color: var(--text-accent);
+  background: transparent !important;
+}
+
+.treetalk-space-direction {
+  width: 6px;
+  flex: 0 0 6px;
+  color: var(--text-muted);
+  text-align: center;
+  transition: transform 120ms ease;
+}
+
+button.treetalk-space-trigger[aria-expanded="true"]
+  .treetalk-space-direction {
+  transform: rotate(90deg);
+}
+
+.treetalk-space-list {
+  padding-top: 2px;
+}
+
+.treetalk-space-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  align-items: center;
+  border-radius: 3px;
+  background: transparent !important;
+}
+
+.treetalk-space-row.is-active {
+  background: color-mix(
+    in srgb,
+    var(--background-modifier-hover) 45%,
+    transparent
+  ) !important;
+}
+
+button.treetalk-space-select {
+  appearance: none;
+  display: flex;
+  min-width: 0;
+  min-height: 28px;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  margin: 0;
+  padding: 3px 4px 3px 22px;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  color: var(--text-normal);
+  background: transparent !important;
+  text-align: left;
+  font: inherit;
+}
+
+button.treetalk-space-select:hover {
+  color: var(--text-accent);
+  background: transparent !important;
+}
+
+.treetalk-space-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  color: var(--text-muted);
+  background: currentColor;
+  opacity: 0.75;
+}
+
+.treetalk-space-row.has-unread .treetalk-space-dot {
+  color: var(--interactive-accent);
+  opacity: 1;
+}
+
+.treetalk-space-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.treetalk-space-close {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  margin-right: 3px;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 3px;
+  box-shadow: none !important;
+  color: var(--text-muted);
+  background: transparent !important;
+  line-height: 18px;
+}
+
+.treetalk-space-row:not(:hover, :focus-within)
+  button.treetalk-space-close {
+  visibility: hidden;
+}
+
+button.treetalk-space-close:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover) !important;
+}
+
+button.treetalk-space-create {
+  appearance: none;
+  display: flex;
+  width: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 0;
+  padding: 3px 6px 3px 22px;
+  border: 0 !important;
+  border-radius: 3px;
+  box-shadow: none !important;
+  outline: 0 !important;
+  color: var(--text-muted);
+  background: transparent !important;
+  text-align: left;
+  font: inherit;
+}
+
+button.treetalk-space-create:hover {
+  color: var(--text-accent);
+  background: transparent !important;
+}
+
+button.treetalk-tree-row {
+  --treetalk-depth: 0;
+  appearance: none;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  min-height: 28px;
+  margin: 0;
+  padding: 3px 6px 3px calc(6px + var(--treetalk-depth) * 16px);
+  border: 0 !important;
+  border-radius: 3px;
+  box-shadow: none !important;
+  outline: 0 !important;
+  color: var(--text-normal);
+  background: transparent !important;
+  text-align: left;
+  font: inherit;
+}
+
+button.treetalk-tree-row:hover {
+  color: var(--text-accent);
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+button.treetalk-tree-row.is-active {
+  color: var(--interactive-accent);
+  border: 0 !important;
+  box-shadow: none !important;
+  background: color-mix(
+    in srgb,
+    var(--background-modifier-hover) 45%,
+    transparent
+  ) !important;
+}
+
+.treetalk-node-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.75;
+}
+
+.treetalk-node-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.treetalk-conversation {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.treetalk-history-bar {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+}
+
+.treetalk-restore {
+  padding: 4px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 5px;
+  color: var(--text-normal);
+  background: transparent;
+}
+
+.treetalk-restore:hover {
+  background: var(--background-modifier-hover);
+}
+
+.treetalk-messages {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 20px 22px 12px;
+}
+
+.treetalk-message {
+  position: relative;
+  max-width: 720px;
+  margin: 0 0 18px;
+  line-height: 1.65;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.treetalk-message-content {
+  user-select: text;
+  -webkit-user-select: text;
+  pointer-events: auto;
+  cursor: text;
+}
+
+.treetalk-message.is-user {
+  width: fit-content;
+  max-width: 80%;
+  margin-left: auto;
+  padding: 4px 10px;
+  box-sizing: border-box;
+  border-radius: 18px;
+  line-height: 1.4;
+  background: var(--background-secondary);
+}
+
+.treetalk-message.is-user .treetalk-streaming-rendered > :first-child {
+  margin-top: 0 !important;
+  margin-block-start: 0 !important;
+}
+
+.treetalk-message.is-user .treetalk-streaming-rendered > :last-child {
+  margin-bottom: 0 !important;
+  margin-block-end: 0 !important;
+}
+
+.treetalk-message.is-user .treetalk-streaming-rendered > p:only-child {
+  margin: 0 !important;
+}
+
+.treetalk-message.is-assistant::selection {
+  background: var(--text-highlight-bg);
+}
+
+.treetalk-message.is-assistant.is-streaming
+  .treetalk-message-content::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 3px;
+  vertical-align: -0.12em;
+  background: var(--text-accent);
+  animation: treetalk-stream-caret 900ms steps(1) infinite;
+}
+
+.treetalk-message.is-assistant.is-streaming
+  .treetalk-message-content:empty::after {
+  display: none;
+}
+
+.treetalk-message.is-assistant.is-interrupted {
+  color: var(--text-muted);
+}
+
+@keyframes treetalk-stream-caret {
+  50% {
+    opacity: 0;
+  }
+}
+
+.treetalk-selection-trace {
+  appearance: none;
+  display: inline;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  color: inherit;
+  background: var(--treetalk-selection-trace-bg);
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  white-space: inherit;
+  cursor: pointer;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.treetalk-selection-trace:hover {
+  background: var(--treetalk-selection-trace-hover-bg);
+}
+
+.treetalk-selection-trace-atomic {
+  border-radius: 4px;
+  background: var(--treetalk-selection-trace-bg);
+  cursor: pointer;
+}
+
+.treetalk-selection-trace-atomic:hover {
+  background: var(--treetalk-selection-trace-hover-bg);
+}
+
+.treetalk-trace-targets {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-inline: 4px;
+  vertical-align: middle;
+}
+
+.treetalk-trace-targets button {
+  min-height: 22px;
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.treetalk-capture-bar {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  padding: 6px 14px 0;
+}
+
+button.treetalk-capture-tree,
+button.treetalk-capture-answer,
+button.treetalk-retry-answer {
+  appearance: none;
+  margin: 0;
+  padding: 3px 7px;
+  border: 0;
+  box-shadow: none;
+  color: var(--text-muted);
+  background: transparent;
+  font-size: var(--font-ui-smaller);
+}
+
+button.treetalk-capture-tree:hover,
+button.treetalk-capture-answer:hover,
+button.treetalk-retry-answer:hover {
+  color: var(--text-accent);
+  background: transparent;
+}
+
+button.treetalk-capture-answer {
+  display: block;
+  width: fit-content;
+  margin: 7px 0 0 auto;
+  border-radius: 5px;
+  background: transparent;
+}
+
+button.treetalk-capture-answer:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+button.treetalk-retry-answer {
+  display: block;
+  width: fit-content;
+  margin: 7px 0 0 auto;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-error);
+}
+
+button.treetalk-retry-answer:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.treetalk-formula-block {
+  position: relative;
+  min-width: 0;
+  margin: 10px 0;
+  padding: 0;
+  overflow-x: auto;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.treetalk-formula-rendered {
+  width: max-content;
+  min-width: max-content;
+  max-width: none;
+  margin-inline: auto;
+}
+
+.treetalk-formula-block.is-selection-source .treetalk-formula-rendered {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.treetalk-formula-block.treetalk-selection-trace-atomic {
+  border-radius: 0;
+  background: transparent;
+}
+
+.treetalk-formula-block.treetalk-selection-trace-atomic:hover {
+  background: transparent;
+}
+
+.treetalk-formula-block.treetalk-selection-trace-atomic
+  .treetalk-formula-rendered {
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--treetalk-selection-trace-bg);
+}
+
+.treetalk-formula-block.treetalk-selection-trace-atomic:hover
+  .treetalk-formula-rendered {
+  background: var(--treetalk-selection-trace-hover-bg);
+}
+
+.treetalk-formula-source {
+  min-width: max-content;
+  margin: 0 0 6px;
+  padding: 2px 0;
+  overflow: visible;
+  border: 0;
+  color: var(--text-normal);
+  background: transparent;
+  font-family: var(--font-monospace);
+  font-size: var(--font-smaller);
+  line-height: 1.55;
+  white-space: pre;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.treetalk-formula-block.is-selection-source .treetalk-formula-source {
+  width: max-content;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: var(--treetalk-selection-source-bg);
+}
+
+.treetalk-formula-block > [hidden] {
+  display: none !important;
+}
+
+.treetalk-composer {
+  margin: 8px 10px 10px;
+  padding: 6px 7px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-primary-alt);
+  box-shadow: none;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease;
+}
+
+.treetalk-composer.is-child {
+  border-color: color-mix(
+    in srgb,
+    var(--interactive-accent) 48%,
+    var(--background-modifier-border)
+  );
+  background: color-mix(
+    in srgb,
+    var(--interactive-accent) 5%,
+    var(--background-primary-alt)
+  );
+  box-shadow: none;
+}
+
+.treetalk-composer:focus-within {
+  border-color: color-mix(
+    in srgb,
+    var(--interactive-accent) 62%,
+    var(--background-modifier-border)
+  );
+  box-shadow: none;
+}
+
+.treetalk-selection-contexts {
+  display: flex;
+  flex-direction: column;
+}
+
+.treetalk-selection-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-height: 54px;
+  margin: 0 0 5px;
+  padding: 5px 6px;
+  overflow: hidden;
+  border: 1px solid color-mix(
+    in srgb,
+    var(--interactive-accent) 24%,
+    var(--background-modifier-border)
+  );
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: color-mix(
+    in srgb,
+    var(--interactive-accent) 6%,
+    transparent
+  );
+  box-shadow: none;
+  font-size: var(--font-ui-smaller);
+}
+
+.treetalk-selection-contexts:empty {
+  display: none;
+}
+
+.treetalk-selection-chip-body {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.treetalk-selection-chip-source {
+  overflow: hidden;
+  color: var(--text-normal);
+  font-weight: var(--font-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.treetalk-selection-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.treetalk-selection-chip-remove {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  place-items: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+  color: var(--text-muted);
+  background: transparent;
+}
+
+button.treetalk-selection-chip-remove:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+button.treetalk-selection-chip-remove:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px color-mix(
+    in srgb,
+    var(--interactive-accent) 35%,
+    transparent
+  );
+}
+
+.treetalk-message-content > :first-child {
+  margin-top: 0;
+}
+
+.treetalk-message-content > :last-child {
+  margin-bottom: 0;
+}
+
+.treetalk-history-search {
+  width: 100%;
+  margin: 0 0 10px;
+}
+
+.treetalk-history-list {
+  display: flex;
+  max-height: min(60vh, 520px);
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+}
+
+.treetalk-history-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 2px;
+  border-radius: 6px;
+}
+
+.treetalk-history-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+button.treetalk-history-open {
+  width: 100%;
+  min-width: 0;
+  grid-column: 1;
+  margin: 0;
+  padding: 7px 9px;
+  overflow: hidden;
+  border: 0;
+  box-shadow: none;
+  color: var(--text-normal);
+  background: transparent;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.treetalk-history-delete {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  grid-column: 2;
+  place-items: center;
+  justify-self: center;
+  margin: 0;
+  padding: 4px;
+  border: 0;
+  box-shadow: none;
+  color: var(--text-muted);
+  background: transparent;
+  opacity: 0;
+}
+
+.treetalk-history-row:hover button.treetalk-history-delete,
+button.treetalk-history-delete:focus-visible {
+  opacity: 1;
+}
+
+button.treetalk-history-delete:hover {
+  color: var(--text-error);
+  background: var(--background-modifier-hover);
+}
+
+.treetalk-history-empty {
+  padding: 24px 8px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.treetalk-history-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.treetalk-input-row {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.treetalk-input-row textarea {
+  width: 100%;
+  min-height: 38px;
+  box-sizing: border-box;
+  padding: 4px 2px;
+  resize: none;
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+  color: var(--text-normal);
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--font-ui-medium);
+  line-height: var(--line-height-normal);
+}
+
+.treetalk-input-row textarea::placeholder {
+  color: var(--text-faint);
+}
+
+.treetalk-input-row textarea:focus {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+}
+
+.treetalk-input-row textarea:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.66;
+}
+
+.treetalk-input-actions {
+  display: flex;
+  min-width: 0;
+  min-height: 28px;
+  align-items: center;
+  gap: 4px;
+}
+
+.treetalk-composer-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.treetalk-branch-mode {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  margin-right: 4px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 0;
+  color: var(--interactive-accent);
+  background: transparent;
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.treetalk-branch-mode::before {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--interactive-accent);
+  content: "";
+}
+
+.treetalk-branch-mode[hidden] {
+  display: none;
+}
+
+.treetalk-web-search-toggle {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  margin: 0;
+  padding: 6px;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+  color: var(--text-muted);
+  background: transparent;
+  line-height: 1;
+}
+
+.treetalk-web-search-toggle svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+}
+
+.treetalk-web-search-toggle:hover:not(:disabled) {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.treetalk-web-search-toggle.is-enabled {
+  color: var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
+}
+
+.treetalk-web-search-toggle:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px color-mix(
+    in srgb,
+    var(--interactive-accent) 30%,
+    transparent
+  );
+}
+
+.treetalk-web-search-toggle.is-unavailable,
+.treetalk-web-search-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.treetalk-send {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  margin: 0;
+  padding: 6px;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+  color: var(--text-on-accent);
+  background: var(--interactive-accent);
+}
+
+.treetalk-send svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.2;
+}
+
+.treetalk-send:hover:not(:disabled) {
+  background: var(--interactive-accent-hover);
+}
+
+.treetalk-send:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px color-mix(
+    in srgb,
+    var(--interactive-accent) 32%,
+    transparent
+  );
+}
+
+.treetalk-send:disabled {
+  color: var(--text-faint);
+  background: var(--background-modifier-hover);
+  cursor: default;
+  opacity: 0.72;
+}
+
+.treetalk-stop {
+  color: var(--text-on-accent);
+  background: var(--background-modifier-error);
+}
+
+.treetalk-stop:hover:not(:disabled) {
+  background: var(--background-modifier-error-hover);
+}
+
+.callout[data-callout="treetalk"] {
+  --callout-color: var(--color-accent-rgb);
+  --callout-icon: lucide-git-branch;
+}
+
+
+/* Source navigation feedback */
+@keyframes treetalk-source-flash {
+  0%, 100% { background-color: transparent; }
+  18%, 48% { background-color: color-mix(in srgb, var(--interactive-accent) 24%, transparent); }
+  32%, 68% { background-color: color-mix(in srgb, var(--interactive-accent) 10%, transparent); }
+}
+
+button.treetalk-tree-row.treetalk-source-node-flash,
+.treetalk-message.treetalk-source-message-flash {
+  animation: treetalk-source-flash 1.8s ease-out both;
+}
+
+.treetalk-source-range-flash {
+  animation: treetalk-source-flash 1.8s ease-out both;
+  background-color: color-mix(in srgb, var(--interactive-accent) 24%, transparent);
+  border-radius: 3px;
+  color: inherit;
+}
+
+mark.treetalk-source-range-flash {
+  padding: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.treetalk-tree-row.treetalk-source-node-flash,
+  .treetalk-message.treetalk-source-message-flash,
+  .treetalk-source-range-flash {
+    animation: none;
+  }
+}
+
+.treetalk-streaming-source-tail {
+  margin: 0;
+  padding: 0.5em 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-monospace);
+  font-size: 0.92em;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.treetalk-agent-execution {
+  margin: 8px 0 0;
+  border-top: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.treetalk-agent-execution > summary {
+  padding: 7px 0 2px;
+  cursor: pointer;
+  user-select: none;
+  list-style-position: inside;
+}
+
+.treetalk-agent-execution-rows {
+  display: grid;
+  gap: 3px;
+  max-width: 360px;
+  padding: 5px 0 2px 14px;
+}
+
+.treetalk-agent-execution-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.treetalk-agent-execution-row > span:last-child {
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+}
+
+.treetalk-token-stats {
+  margin: 8px 0 0;
+  border-top: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.treetalk-token-stats > summary {
+  padding: 7px 0 2px;
+  cursor: pointer;
+  user-select: none;
+  list-style-position: inside;
+}
+
+.treetalk-token-stats-rows {
+  display: grid;
+  gap: 3px;
+  max-width: 320px;
+  padding: 5px 0 2px 14px;
+}
+
+.treetalk-token-stats-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.treetalk-token-stats-row > span:last-child {
+  color: var(--text-normal);
+  font-variant-numeric: tabular-nums;
+}
+
+.treetalk-response-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 1.5em;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.treetalk-response-progress::before {
+  width: 0.72em;
+  height: 0.72em;
+  flex: 0 0 auto;
+  border: 1.5px solid var(--background-modifier-border-hover);
+  border-top-color: var(--interactive-accent);
+  border-radius: 50%;
+  content: "";
+  animation: treetalk-response-progress-spin 0.9s linear infinite;
+}
+
+@keyframes treetalk-response-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .treetalk-response-progress::before {
+    animation: none;
+  }
+}
+
+.treetalk-capture-bar {
+  gap: 6px;
+}
+
+/* TreeTalk relationship graph: PixiJS surface with direct pointer input. */
+.relationship-graph-window {
+  position: fixed;
+  z-index: 980;
+  display: flex;
+  flex-direction: column;
+  min-width: 560px;
+  min-height: 360px;
+  overflow: hidden;
+  color: var(--text-normal);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-l);
+  pointer-events: auto;
+}
+
+.relationship-graph-window.is-focused {
+  z-index: 990;
+  border-color: var(--interactive-accent);
+}
+
+.relationship-graph-window.is-minimized {
+  min-width: 300px;
+  min-height: 42px;
+  width: 360px !important;
+}
+
+.relationship-graph-window.is-minimized .relationship-graph-toolbar,
+.relationship-graph-window.is-minimized .relationship-graph-stage,
+.relationship-graph-window.is-minimized .relationship-graph-resize-handle {
+  display: none;
+}
+
+.relationship-graph-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 42px;
+  padding: 0 8px 0 14px;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  cursor: move;
+  user-select: none;
+}
+
+.relationship-graph-title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relationship-graph-window-controls,
+.relationship-graph-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.relationship-graph-window-controls button,
+.relationship-graph-toolbar button {
+  display: grid;
+  min-width: 30px;
+  height: 28px;
+  padding: 0 8px;
+  place-items: center;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.relationship-graph-window-controls button:hover,
+.relationship-graph-toolbar button:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.relationship-graph-toolbar {
+  flex: 0 0 34px;
+  padding: 3px 10px;
+  color: var(--text-muted);
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-smaller);
+}
+
+.relationship-graph-counts {
+  margin-right: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.relationship-graph-zoom {
+  min-width: 48px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.relationship-graph-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--background-primary);
+}
+
+.relationship-graph-canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  outline: none;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+
+.relationship-graph-canvas:active {
+  cursor: grabbing;
+}
+
+.relationship-graph-empty-overlay,
+.relationship-graph-error-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-content: center;
+  gap: 10px;
+  padding: 24px;
+  color: var(--text-muted);
+  text-align: center;
+  background: color-mix(in srgb, var(--background-primary) 94%, transparent);
+}
+
+.relationship-graph-empty-overlay[hidden],
+.relationship-graph-error-overlay[hidden] {
+  display: none;
+}
+
+.relationship-graph-resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+}
+
+.relationship-graph-resize-handle::after {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 8px;
+  height: 8px;
+  content: "";
+  border-right: 2px solid var(--text-faint);
+  border-bottom: 2px solid var(--text-faint);
+}
+
+button.treetalk-open-relationship-graph {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  margin: 0;
+  padding: 6px;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+  color: var(--text-muted);
+  background: transparent;
+  line-height: 1;
+}
+
+button.treetalk-open-relationship-graph svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+}
+
+button.treetalk-open-relationship-graph:hover,
+button.treetalk-open-relationship-graph:focus-visible {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.relationship-graph-label-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+
+.treetalk-answer-thinking-toggle {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  margin: 0;
+  padding: 6px;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+  color: var(--text-muted);
+  background: transparent;
+  line-height: 1;
+}
+
+.treetalk-answer-thinking-toggle svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+}
+
+.treetalk-answer-thinking-toggle:hover:not(:disabled) {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.treetalk-answer-thinking-toggle.is-enabled {
+  color: var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
+}
+
+.treetalk-answer-thinking-toggle.is-disabled {
+  color: var(--text-faint);
+}
+
+.treetalk-answer-thinking-toggle:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px color-mix(
+    in srgb,
+    var(--interactive-accent) 30%,
+    transparent
+  );
+}
+
+.treetalk-answer-thinking-toggle.is-unavailable,
+.treetalk-answer-thinking-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.treetalk-thinking-panel {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  border-left: 2px solid var(--background-modifier-border-hover);
+  padding-left: 10px;
+}
+
+.treetalk-thinking-panel > summary {
+  width: fit-content;
+  cursor: pointer;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.treetalk-thinking-content {
+  max-height: 180px;
+  margin: 7px 0 0;
+  padding: 8px 10px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  background: var(--background-secondary);
+  border-radius: 6px;
+  font: inherit;
+  line-height: 1.55;
+}
+
+.treetalk-execution-mode-toggle {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  margin: 0;
+  padding: 6px;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+  color: var(--text-muted);
+  background: transparent;
+  line-height: 1;
+}
+
+.treetalk-related-note-toggle {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  margin: 0;
+  padding: 6px;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+  color: var(--text-muted);
+  background: transparent;
+  line-height: 1;
+}
+
+.treetalk-execution-mode-toggle svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+}
+
+.treetalk-related-note-toggle svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+}
+
+.treetalk-execution-mode-toggle:hover:not(:disabled),
+.treetalk-related-note-toggle:hover:not(:disabled) {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.treetalk-execution-mode-toggle.is-pi {
+  color: var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
+}
+
+.treetalk-related-note-toggle.is-enabled {
+  color: var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
+}
+
+.treetalk-execution-mode-toggle.is-legacy {
+  color: var(--text-muted);
+}
+
+.treetalk-execution-mode-toggle:focus-visible,
+.treetalk-related-note-toggle:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px color-mix(
+    in srgb,
+    var(--interactive-accent) 30%,
+    transparent
+  );
+}
+
+.treetalk-execution-mode-toggle:disabled,
+.treetalk-related-note-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+
+.treetalk-context-divergence-toggle {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.treetalk-context-divergence-toggle svg {
+  width: 15px;
+  height: 15px;
+}
+
+.treetalk-context-divergence-toggle:hover:not(:disabled) {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.treetalk-context-divergence-toggle.is-enabled {
+  color: var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
+}
+
+.treetalk-context-divergence-toggle:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 1px;
+}
+
+.treetalk-context-divergence-toggle.is-unavailable,
+.treetalk-context-divergence-toggle:disabled {
+  opacity: 0.45;
+}

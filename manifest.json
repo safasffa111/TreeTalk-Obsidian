@@ -1,0 +1,9 @@
+{
+  "id": "treetalk",
+  "name": "TreeTalk",
+  "version": "0.9.0",
+  "minAppVersion": "1.13.0",
+  "description": "Native Markdown tree conversations with deliberate knowledge capture.",
+  "author": "Len_shan",
+  "isDesktopOnly": true
+}

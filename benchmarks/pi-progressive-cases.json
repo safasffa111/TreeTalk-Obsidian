@@ -1,0 +1,452 @@
+[
+  {
+    "id": "term-curl",
+    "category": "term-definition",
+    "question": "旋度是什么意思？",
+    "selection": "旋度",
+    "expectedStartLevel": 0,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应独立、直观地解释局部旋转，并避免被来源笔记中的措辞限制。"
+  },
+  {
+    "id": "term-divergence",
+    "category": "term-definition",
+    "question": "散度怎么理解？",
+    "selection": "散度",
+    "expectedStartLevel": 0,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应说明源汇强弱和局部净流出含义，不强行引用关联笔记。"
+  },
+  {
+    "id": "term-cache-hit",
+    "category": "term-definition",
+    "question": "缓存命中是什么意思？",
+    "selection": "缓存命中",
+    "expectedStartLevel": 0,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应给出一般定义、简单例子，并区分命中率与缓存容量。"
+  },
+  {
+    "id": "term-vector-field",
+    "category": "term-definition",
+    "question": "什么是向量场？",
+    "selection": "向量场",
+    "expectedStartLevel": 0,
+    "relatedNotesAllowed": false,
+    "qualityRubric": "应从空间中每一点对应一个向量的直觉出发解释。"
+  },
+  {
+    "id": "term-agent",
+    "category": "term-definition",
+    "question": "Agent 在这里是什么意思？",
+    "selection": "Agent",
+    "expectedStartLevel": 1,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应结合局部语境区分通用智能体和当前项目执行引擎。"
+  },
+  {
+    "id": "formula-nabla",
+    "category": "formula-symbol",
+    "question": "这个倒三角符号表示什么？",
+    "selection": "∇",
+    "expectedStartLevel": 0,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应解释 nabla 算子，并按问题需要区分梯度、散度和旋度。"
+  },
+  {
+    "id": "formula-ds",
+    "category": "formula-symbol",
+    "question": "这里的 dS 是什么意思？",
+    "selection": "dS",
+    "expectedStartLevel": 1,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应结合所在公式说明面积微元及其可能的方向含义。"
+  },
+  {
+    "id": "formula-partial",
+    "category": "formula-symbol",
+    "question": "偏导符号 ∂ 为什么不是普通的 d？",
+    "selection": "∂",
+    "expectedStartLevel": 0,
+    "relatedNotesAllowed": false,
+    "qualityRubric": "应准确区分多变量偏导与全微分。"
+  },
+  {
+    "id": "formula-dot",
+    "category": "formula-symbol",
+    "question": "公式里的点乘有什么几何意义？",
+    "selection": "·",
+    "expectedStartLevel": 1,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应结合局部公式解释投影或通量，而不是泛泛介绍所有乘法。"
+  },
+  {
+    "id": "formula-cross",
+    "category": "formula-symbol",
+    "question": "这个叉乘为什么会得到一个方向？",
+    "selection": "×",
+    "expectedStartLevel": 0,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应解释垂直方向、右手定则和大小的面积意义。"
+  },
+  {
+    "id": "local-boundary-direction",
+    "category": "local-reference",
+    "question": "这里为什么把边界方向规定为逆时针？",
+    "selection": "逆时针",
+    "expectedStartLevel": 1,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应使用所在章节的正向边界约定解释，避免读取整篇笔记。"
+  },
+  {
+    "id": "local-this-step",
+    "category": "local-reference",
+    "question": "这一步是怎么变形得到的？",
+    "selection": "这一步",
+    "expectedStartLevel": 1,
+    "relatedNotesAllowed": false,
+    "qualityRubric": "应读取局部公式上下文并逐步说明等价变形。"
+  },
+  {
+    "id": "local-pronoun",
+    "category": "local-reference",
+    "question": "这里的‘它’具体指什么？",
+    "selection": "它",
+    "expectedStartLevel": 1,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应依赖所在句段消除指代歧义。"
+  },
+  {
+    "id": "local-assumption",
+    "category": "local-reference",
+    "question": "为什么这里可以假设区域是单连通的？",
+    "selection": "单连通",
+    "expectedStartLevel": 1,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应结合当前论证解释假设用途和不满足时的问题。"
+  },
+  {
+    "id": "local-code-line",
+    "category": "local-reference",
+    "question": "这一行代码为什么要先复制数组？",
+    "selection": "const next = structuredClone(current)",
+    "expectedStartLevel": 1,
+    "relatedNotesAllowed": false,
+    "qualityRubric": "应结合相邻代码说明不可变状态更新和副作用隔离。"
+  },
+  {
+    "id": "note-summary",
+    "category": "whole-note",
+    "question": "结合这篇笔记总结它的核心逻辑。",
+    "selection": "当前笔记",
+    "expectedStartLevel": 2,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应覆盖全文主线，但按批次读取，避免遗漏结论。"
+  },
+  {
+    "id": "note-restructure",
+    "category": "whole-note",
+    "question": "根据当前笔记重新整理一份学习顺序。",
+    "selection": "当前笔记",
+    "expectedStartLevel": 2,
+    "relatedNotesAllowed": false,
+    "qualityRubric": "应保留原知识点并给出合理先修顺序。"
+  },
+  {
+    "id": "note-errors",
+    "category": "whole-note",
+    "question": "找出这篇笔记中可能不严谨的地方。",
+    "selection": "当前笔记",
+    "expectedStartLevel": 2,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应依据全文定位具体问题，不凭空挑错。"
+  },
+  {
+    "id": "note-outline",
+    "category": "whole-note",
+    "question": "把当前节点整理成三级 Markdown 大纲。",
+    "selection": "当前节点",
+    "expectedStartLevel": 2,
+    "relatedNotesAllowed": false,
+    "qualityRubric": "应覆盖当前节点内容并只做结构化转换。"
+  },
+  {
+    "id": "note-conclusion",
+    "category": "whole-note",
+    "question": "根据整篇内容写一个准确的结论段。",
+    "selection": "当前笔记",
+    "expectedStartLevel": 2,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应综合全文而不是只复述框选章节。"
+  },
+  {
+    "id": "parent-why",
+    "category": "parent-followup",
+    "question": "上一轮回答为什么说这个结论只在光滑条件下成立？",
+    "selection": "这个结论",
+    "expectedStartLevel": 1,
+    "relatedNotesAllowed": false,
+    "qualityRubric": "应优先读取直接父节点相关章节并解释条件作用。"
+  },
+  {
+    "id": "parent-example",
+    "category": "parent-followup",
+    "question": "给上一轮的抽象解释补一个具体例子。",
+    "selection": "上一轮的抽象解释",
+    "expectedStartLevel": 1,
+    "relatedNotesAllowed": false,
+    "qualityRubric": "应保持父节点主题并提供一致例子。"
+  },
+  {
+    "id": "parent-correct",
+    "category": "parent-followup",
+    "question": "上一轮回答里这句话是不是说反了？",
+    "selection": "这句话",
+    "expectedStartLevel": 1,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应核对局部原文并明确纠错依据。"
+  },
+  {
+    "id": "parent-deeper",
+    "category": "parent-followup",
+    "question": "继续解释刚才提到的局部与整体关系。",
+    "selection": "局部与整体关系",
+    "expectedStartLevel": 1,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应承接最近父节点而不重新选择无关笔记。"
+  },
+  {
+    "id": "parent-contrast",
+    "category": "parent-followup",
+    "question": "它和上一轮提到的另一个概念有什么区别？",
+    "selection": "它",
+    "expectedStartLevel": 1,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应先通过父节点消除两个概念的指代。"
+  },
+  {
+    "id": "ancestor-proof-chain",
+    "category": "ancestor-chain",
+    "question": "结合祖先节点还原这段证明的完整推导链。",
+    "selection": "当前证明步骤",
+    "expectedStartLevel": 3,
+    "relatedNotesAllowed": false,
+    "qualityRubric": "应按父节点距离由近到远恢复推导，不读取关联笔记。"
+  },
+  {
+    "id": "ancestor-decision",
+    "category": "ancestor-chain",
+    "question": "回顾前面的节点，为什么最终选择了 Pi 而不是 Legacy？",
+    "selection": "Pi",
+    "expectedStartLevel": 3,
+    "relatedNotesAllowed": false,
+    "qualityRubric": "应从祖先决策链提取理由并避免虚构。"
+  },
+  {
+    "id": "ancestor-definition-drift",
+    "category": "ancestor-chain",
+    "question": "对比祖先节点，检查这个定义有没有发生变化。",
+    "selection": "当前定义",
+    "expectedStartLevel": 3,
+    "relatedNotesAllowed": false,
+    "qualityRubric": "应按时间/树距离比较定义版本。"
+  },
+  {
+    "id": "ancestor-math-prereq",
+    "category": "ancestor-chain",
+    "question": "结合前面的推导说明这一公式依赖哪些前提。",
+    "selection": "这一公式",
+    "expectedStartLevel": 3,
+    "relatedNotesAllowed": false,
+    "qualityRubric": "应优先最近祖先章节并列出必要前提。"
+  },
+  {
+    "id": "ancestor-project-bug",
+    "category": "ancestor-chain",
+    "question": "结合之前的排查节点总结这个卡顿问题的根因链。",
+    "selection": "卡顿问题",
+    "expectedStartLevel": 3,
+    "relatedNotesAllowed": false,
+    "qualityRubric": "应从祖先节点提取证据链而非泛化猜测。"
+  },
+  {
+    "id": "related-green-gauss",
+    "category": "related-note-comparison",
+    "question": "联系相关笔记比较格林公式和高斯公式。",
+    "selection": "格林公式",
+    "expectedStartLevel": 3,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应读取两边相关章节，比较维度、边界和统一思想。"
+  },
+  {
+    "id": "related-cache-model",
+    "category": "related-note-comparison",
+    "question": "结合关联笔记比较缓存命中与上下文压缩。",
+    "selection": "缓存命中",
+    "expectedStartLevel": 3,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应区分两个机制的目标、成本和相互作用。"
+  },
+  {
+    "id": "related-agent-claudian",
+    "category": "related-note-comparison",
+    "question": "联系其他笔记比较 TreeTalk Pi 与 Claudian 的知识沉淀方式。",
+    "selection": "TreeTalk Pi",
+    "expectedStartLevel": 3,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应基于相关项目笔记，避免只给通用产品介绍。"
+  },
+  {
+    "id": "related-div-curl",
+    "category": "related-note-comparison",
+    "question": "结合相关笔记比较散度和旋度的几何意义。",
+    "selection": "散度和旋度",
+    "expectedStartLevel": 3,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应并列解释源汇与旋转并给出典型物理图像。"
+  },
+  {
+    "id": "related-api-cost",
+    "category": "related-note-comparison",
+    "question": "根据相关笔记比较不同模型在这类长上下文任务中的成本。",
+    "selection": "模型成本",
+    "expectedStartLevel": 3,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应使用笔记中的定价/Token数据并标明资料局限。"
+  },
+  {
+    "id": "noise-curl-with-resume",
+    "category": "irrelevant-note-noise",
+    "question": "旋度是什么意思？",
+    "selection": "旋度",
+    "expectedStartLevel": 0,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "即使关联图含简历笔记，也应一次直接回答且不读取无关笔记。"
+  },
+  {
+    "id": "noise-rewrite-with-math",
+    "category": "irrelevant-note-noise",
+    "question": "把这句话改得更简洁。",
+    "selection": "TreeTalk 通过树状结构保存分支对话。",
+    "expectedStartLevel": 0,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应只改写选中文本，不调用数学关联笔记。"
+  },
+  {
+    "id": "noise-translate-with-project",
+    "category": "irrelevant-note-noise",
+    "question": "翻译成英文。",
+    "selection": "局部旋转趋势",
+    "expectedStartLevel": 0,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应直接翻译，不受项目源码笔记干扰。"
+  },
+  {
+    "id": "noise-format-with-physics",
+    "category": "irrelevant-note-noise",
+    "question": "把这些条目改成 Markdown 表格。",
+    "selection": "条目列表",
+    "expectedStartLevel": 0,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应完成格式转换且不检索物理笔记。"
+  },
+  {
+    "id": "noise-definition-with-video",
+    "category": "irrelevant-note-noise",
+    "question": "什么是散度？",
+    "selection": "散度",
+    "expectedStartLevel": 0,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应忽略视频制作和封面设计等无关关联内容。"
+  },
+  {
+    "id": "long-note-summary",
+    "category": "long-source",
+    "question": "根据这篇很长的笔记提炼五个核心结论。",
+    "selection": "当前长笔记",
+    "expectedStartLevel": 2,
+    "relatedNotesAllowed": false,
+    "qualityRubric": "应分批覆盖全文，结论不能只来自开头。"
+  },
+  {
+    "id": "long-node-debug",
+    "category": "long-source",
+    "question": "总结这个长节点里的完整调试过程。",
+    "selection": "当前长节点",
+    "expectedStartLevel": 2,
+    "relatedNotesAllowed": false,
+    "qualityRubric": "应按批次读取并保留问题、尝试和最终修复。"
+  },
+  {
+    "id": "long-note-section-first",
+    "category": "long-source",
+    "question": "解释这个概念，并在需要时查看整篇长笔记。",
+    "selection": "上下文窗口",
+    "expectedStartLevel": 0,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应先直接解释，仅在确有歧义时逐级扩展。"
+  },
+  {
+    "id": "long-legal-note",
+    "category": "long-source",
+    "question": "根据整篇法规笔记整理适用条件和例外。",
+    "selection": "当前法规笔记",
+    "expectedStartLevel": 2,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应分批读取并明确区分一般规则与例外。"
+  },
+  {
+    "id": "long-source-compare",
+    "category": "long-source",
+    "question": "基于这篇长源码分析文档总结性能瓶颈。",
+    "selection": "当前源码分析文档",
+    "expectedStartLevel": 2,
+    "relatedNotesAllowed": false,
+    "qualityRubric": "应覆盖多个关键章节并避免一次注入全文。"
+  },
+  {
+    "id": "missing-private-name",
+    "category": "insufficient-evidence",
+    "question": "这份笔记里作者提到的‘小林’具体是谁？",
+    "selection": "小林",
+    "expectedStartLevel": 1,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "若上下文没有身份信息，应逐级查找后明确说明无法确定。"
+  },
+  {
+    "id": "missing-formula-definition",
+    "category": "insufficient-evidence",
+    "question": "这个自定义符号 Z_k 的定义在哪里？",
+    "selection": "Z_k",
+    "expectedStartLevel": 1,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应逐级寻找定义；找不到时不得自行编造。"
+  },
+  {
+    "id": "missing-project-metric",
+    "category": "insufficient-evidence",
+    "question": "当前项目真实用户留存率是多少？",
+    "selection": "用户留存率",
+    "expectedStartLevel": 0,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "若笔记无真实统计，应说明缺少数据而非给出估计值。"
+  },
+  {
+    "id": "missing-date",
+    "category": "insufficient-evidence",
+    "question": "这项决定最终是哪一天确定的？",
+    "selection": "这项决定",
+    "expectedStartLevel": 1,
+    "relatedNotesAllowed": false,
+    "qualityRubric": "应检查祖先记录；无时间戳时明确不确定。"
+  },
+  {
+    "id": "conflicting-notes",
+    "category": "insufficient-evidence",
+    "question": "两篇关联笔记给出的结论冲突，哪一个更可信？",
+    "selection": "冲突结论",
+    "expectedStartLevel": 3,
+    "relatedNotesAllowed": true,
+    "qualityRubric": "应读取冲突章节、比较证据和更新时间，无法裁定时保留不确定性。"
+  }
+]
