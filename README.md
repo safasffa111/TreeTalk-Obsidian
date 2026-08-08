@@ -55,6 +55,10 @@ TreeTalk 把 AI 对话组织成树形结构：每条追问都可以继续或分�
 
 ## 关系图谱操作
 
+关系图谱是「沉淀对话树」的关系地图：对话树的所有节点按父子关系展开，框选来源与关联笔记作为笔记节点接入，连线表示“树结构 / 框选来源 / 关联笔记”三类关系。图谱不修改对话内容，也不会改动已经沉淀出的 Markdown 笔记。
+
+**点暗（右键排除）的设计意图**：对话树分支越多、关联笔记越密，图谱就越拥挤。右键点击节点或连线把它“排除”，被排除的部分变暗、其余保持高亮——既方便在图上聚焦某一条分支或某一篇笔记的关系链，也用来选择下一次沉淀的范围：被排除的节点不会生成笔记，被排除的连线不会建立链接。排除状态会保存，下次打开仍然生效；再次右键恢复后，重新“沉淀对话树”就会包含这些节点与连线。想只沉淀关心的分支时，先在图上排除其余部分，再点击“沉淀对话树”即可。
+
 通过命令“TreeTalk: 打开沉淀关系图谱”打开沉淀后的关系图谱窗口。
 
 - 平移：按住左键在空白处拖动画布。
@@ -194,6 +198,10 @@ Reload Obsidian, enable TreeTalk under Community plugins, then open Settings →
 - Close an active conversation space: saves and archives it.
 
 ## Relationship graph operations
+
+The graph is the relationship map of a deposited conversation tree: every conversation node is laid out by its parent-child structure, and selection sources and related notes join as note nodes, with edges for tree structure, selection sources, and related notes. It does not modify conversation content or already deposited Markdown notes.
+
+**Why right-click dimming:** the more branches and related notes a tree has, the denser the graph becomes. Right-clicking a node or edge excludes it: the excluded part dims while the rest stays highlighted, which both focuses the view on one branch or a note's connection chain and selects the scope of the next tree deposit — excluded nodes produce no notes and excluded edges create no links. Exclusions are saved and survive reopening; right-click again to restore, and the next "沉淀对话树" deposit includes them again. To deposit only the branches you care about, exclude the rest in the graph first, then click "沉淀对话树".
 
 Open the graph with the command "TreeTalk: 打开沉淀关系图谱" (Open deposit relationship graph).
 
