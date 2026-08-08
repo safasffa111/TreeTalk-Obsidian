@@ -1,5 +1,11 @@
 # TreeTalk Changelog
 
+## 0.9.2: Fix declarative settings groups
+
+- Declarative setting groups now use the required `type: "group"` discriminator
+  and `heading` field so controls render inside each section instead of bare
+  name rows.
+
 ## 0.9.1: Obsidian review fixes
 
 - Migrate the settings tab to the declarative settings API

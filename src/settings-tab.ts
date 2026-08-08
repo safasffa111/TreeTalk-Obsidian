@@ -66,7 +66,8 @@ export class TreeTalkSettingTab extends PluginSettingTab {
   getSettingDefinitions(): SettingDefinitionItem[] {
     return [
       {
-        name: "通用",
+        type: "group",
+        heading: "通用",
         items: [
           {
             name: "上下文发散",
@@ -86,7 +87,8 @@ export class TreeTalkSettingTab extends PluginSettingTab {
         ]
       },
       {
-        name: "DeepSeek API",
+        type: "group",
+        heading: "DeepSeek API",
         items: [
           {
             name: "模型",
@@ -130,7 +132,8 @@ export class TreeTalkSettingTab extends PluginSettingTab {
         ]
       },
       {
-        name: "关联笔记",
+        type: "group",
+        heading: "关联笔记",
         items: [
           {
             name: "关联笔记上下文",
@@ -171,7 +174,8 @@ export class TreeTalkSettingTab extends PluginSettingTab {
         ]
       },
       {
-        name: "知识沉淀",
+        type: "group",
+        heading: "知识沉淀",
         items: [
           {
             name: "知识沉淀文件夹",

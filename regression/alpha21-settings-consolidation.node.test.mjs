@@ -100,7 +100,7 @@ void test("explicit enabled thinking survives normalization while auto becomes d
 
 void test("settings expose only DeepSeek API and binary thinking", () => {
   const settings = fs.readFileSync(path.join(root, "src/settings-tab.ts"), "utf8");
-  assert.match(settings, /name: "DeepSeek API"/u);
+  assert.match(settings, /heading: "DeepSeek API"/u);
   assert.doesNotMatch(settings, /\.setName\("执行引擎"\)/u);
   assert.doesNotMatch(settings, /\.setName\("服务类型"\)/u);
   assert.doesNotMatch(settings, /\.setName\("平衡模式"\)/u);

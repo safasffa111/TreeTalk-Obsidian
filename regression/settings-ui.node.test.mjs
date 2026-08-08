@@ -81,7 +81,7 @@ void test("settings no longer expose balanced or note compression controls", () 
   assert.doesNotMatch(mainSource, /\.setName\("平衡模式"\)/u);
   assert.doesNotMatch(mainSource, /\.setName\("完整笔记上下文"\)/u);
   assert.doesNotMatch(mainSource, /\.setName\("单篇笔记上下文上限"\)/u);
-  assert.match(settingsSource, /name: "关联笔记"/u);
+  assert.match(settingsSource, /heading: "关联笔记"/u);
 });
 
 void test("user message bubble stays close to the rendered text size", () => {
