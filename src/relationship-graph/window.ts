@@ -309,6 +309,12 @@ export class RelationshipGraphWindow {
     root.classList.toggle("is-maximized", state.maximized);
     if (state.maximized) {
       // Maximized geometry is declared in styles.css via .is-maximized.
+      // Clear the inline geometry left behind by the normal branch, because
+      // inline styles would otherwise override the CSS rules.
+      root.style.left = "";
+      root.style.top = "";
+      root.style.width = "";
+      root.style.height = "";
     } else {
       root.style.left = `${String(Math.max(0, state.x))}px`;
       root.style.top = `${String(Math.max(0, state.y))}px`;

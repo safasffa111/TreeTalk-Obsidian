@@ -1,5 +1,13 @@
 # TreeTalk Changelog
 
+## 0.9.3: Fix graph maximize and README refresh
+
+- Fix the relationship graph maximize button: inline geometry from the normal
+  window state is cleared when maximized so the `.is-maximized` CSS rules
+  actually apply.
+- README: bilingual (Chinese first, English after) with installation, usage,
+  relationship graph operations, and selection/tree operation guides.
+
 ## 0.9.2: Fix declarative settings groups
 
 - Declarative setting groups now use the required `type: "group"` discriminator

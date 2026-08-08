@@ -1,6 +1,6 @@
 {
   "name": "treetalk",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "description": "Branching AI conversations and deliberate knowledge capture for Obsidian.",
   "type": "module",
   "private": true,
