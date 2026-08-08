@@ -1,5 +1,15 @@
 # TreeTalk Changelog
 
+## 0.9.1: Obsidian review fixes
+
+- Migrate the settings tab to the declarative settings API
+  (`getSettingDefinitions`), making settings searchable on Obsidian 1.13+ and
+  replacing imperative HTML headings with native setting groups.
+- Move maximized relationship-graph geometry into styles.css instead of static
+  style assignments.
+- Extract the settings tab into `src/settings-tab.ts` behind a plugin port
+  interface.
+
 ## 0.9.0: First community release
 
 - Store-facing README with installation, usage, and privacy disclosure.

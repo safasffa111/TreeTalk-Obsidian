@@ -4,15 +4,15 @@ import test from "node:test";
 
 const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
 
-void test("0.9.0 release metadata is synchronized", () => {
+void test("0.9.1 release metadata is synchronized", () => {
   const packageJson = readJson("package.json");
   const packageLock = readJson("package-lock.json");
   const manifest = readJson("manifest.json");
   const versions = readJson("versions.json");
-  assert.equal(packageJson.version, "0.9.0");
-  assert.equal(packageLock.version, "0.9.0");
-  assert.equal(packageLock.packages[""]["version"], "0.9.0");
-  assert.equal(manifest.version, "0.9.0");
+  assert.equal(packageJson.version, "0.9.1");
+  assert.equal(packageLock.version, "0.9.1");
+  assert.equal(packageLock.packages[""]["version"], "0.9.1");
+  assert.equal(manifest.version, "0.9.1");
   assert.equal(manifest.author, "Len_shan");
-  assert.equal(versions["0.9.0"], "1.13.0");
+  assert.equal(versions["0.9.1"], "1.13.0");
 });

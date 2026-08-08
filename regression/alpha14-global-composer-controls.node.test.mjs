@@ -49,8 +49,8 @@ void test("send snapshots global controls before changing conversation state", (
 });
 
 void test("settings page subscribes to composer control changes", () => {
-  const main = read("src/main.ts");
-  assert.match(main, /controlStateUnsubscribe/u);
-  assert.match(main, /this\.plugin\.subscribeComposerControls\(syncControls\)/u);
-  assert.match(main, /const syncControls = \(\): void => this\.display\(\)/u);
+  const settings = read("src/settings-tab.ts");
+  assert.match(settings, /unsubscribeComposerControls/u);
+  assert.match(settings, /subscribeComposerControls\(/u);
+  assert.match(settings, /=> this\.update\(\)/u);
 });

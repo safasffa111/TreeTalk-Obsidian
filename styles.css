@@ -1216,6 +1216,13 @@ mark.treetalk-source-range-flash {
   width: 360px !important;
 }
 
+.relationship-graph-window.is-maximized {
+  left: 12px;
+  top: 12px;
+  width: calc(100vw - 24px);
+  height: calc(100vh - 24px);
+}
+
 .relationship-graph-window.is-minimized .relationship-graph-toolbar,
 .relationship-graph-window.is-minimized .relationship-graph-stage,
 .relationship-graph-window.is-minimized .relationship-graph-resize-handle {

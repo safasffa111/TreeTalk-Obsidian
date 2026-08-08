@@ -597,13 +597,13 @@ void test("main persists frozen note graphs before compiling provider context", 
 });
 
 void test("settings UI fixes full note bodies and keeps related-note depth controls", () => {
-  const source = fs.readFileSync(path.join(root, "src/main.ts"), "utf8");
+  const source = fs.readFileSync(path.join(root, "src/settings-tab.ts"), "utf8");
   assert.doesNotMatch(source, /\.setName\("完整笔记上下文"\)/u);
   assert.doesNotMatch(source, /\.setName\("单篇笔记上下文上限"\)/u);
-  assert.match(source, /\.setName\("关联笔记上下文"\)/u);
-  assert.match(source, /\.setName\("关联笔记深度"\)/u);
-  assert.match(source, /unlimited:\s*"无限"/u);
-  assert.match(source, /inputEl\.min\s*=\s*"1"/u);
+  assert.match(source, /name: "关联笔记上下文"/u);
+  assert.match(source, /name: "关联笔记深度"/u);
+  assert.match(source, /unlimited: "无限"/u);
+  assert.match(source, /min:\s*1/u);
   assert.match(source, /正向和反向内部链接/u);
 });
 

@@ -2,11 +2,8 @@ import {
   MarkdownView,
   Notice,
   Plugin,
-  PluginSettingTab,
   requestUrl,
-  Setting,
-  TFile,
-  type App
+  TFile
 } from "obsidian";
 import { ArchiveService } from "./archive/archive-service";
 import { LifecycleQueue } from "./archive/lifecycle-queue";
@@ -87,12 +84,12 @@ import { ActiveConversationStore } from "./tabs/active-conversation-store";
 import { ConversationTabsStore } from "./tabs/conversation-tabs-store";
 import {
   DEFAULT_SETTINGS,
-  normalizeConfiguredModel,
   normalizeTreeTalkSettings,
   parsePluginData,
   type TreeTalkPluginData,
   type TreeTalkSettings
 } from "./tabs/plugin-data";
+import { TreeTalkSettingTab } from "./settings-tab";
 import { TabLifecycleController } from "./tabs/tab-lifecycle-controller";
 import { TabResponseRouter } from "./tabs/tab-response-router";
 import type { TabResponseTicket } from "./tabs/tab-response-router";
@@ -1572,247 +1569,5 @@ export default class TreeTalkPlugin extends Plugin {
       .catch(() => undefined)
       .then(() => this.saveData(this.pluginData));
     return this.dataSaveTail;
-  }
-}
-
-class TreeTalkSettingTab extends PluginSettingTab {
-  private webSearchUnsubscribe: (() => void) | undefined;
-  private controlStateUnsubscribe: (() => void) | undefined;
-
-  constructor(
-    app: App,
-    private readonly plugin: TreeTalkPlugin
-  ) {
-    super(app, plugin);
-  }
-
-  display(): void {
-    this.webSearchUnsubscribe?.();
-    this.webSearchUnsubscribe = undefined;
-    this.controlStateUnsubscribe?.();
-    this.controlStateUnsubscribe = undefined;
-    this.containerEl.empty();
-    const settings = this.plugin.getSettings();
-    new Setting(this.containerEl)
-      .setName("上下文发散")
-      .setDesc("开启后，Pi 可在当前权限范围内跨级请求可用上下文；关闭时按相邻层级扩展。")
-      .addToggle((toggle) =>
-        toggle
-          .setValue(settings.contextDivergenceEnabled)
-          .onChange(async (contextDivergenceEnabled) => {
-            await this.plugin.updateSettings({
-              ...this.plugin.getSettings(),
-              contextDivergenceEnabled
-            });
-          })
-      );
-    new Setting(this.containerEl)
-      .setName("流式输出")
-      .setDesc("开启后回答会边生成边显示；关闭后等待完整回答后一次性显示。")
-      .addToggle((toggle) =>
-        toggle
-          .setValue(settings.streamingOutputEnabled)
-          .onChange(async (streamingOutputEnabled) => {
-            await this.plugin.updateSettings({
-              ...this.plugin.getSettings(),
-              streamingOutputEnabled
-            });
-          })
-      );
-    new Setting(this.containerEl)
-      .setName("回答思考模式")
-      .setDesc("控制 DeepSeek 是否启用思考；输入框按钮与此处实时同步。")
-      .addToggle((toggle) =>
-        toggle
-          .setValue(settings.answerThinkingMode === "enabled")
-          .onChange(async (enabled) => {
-            await this.plugin.updateSettings({
-              ...this.plugin.getSettings(),
-              answerThinkingMode: enabled ? "enabled" : "disabled"
-            });
-          })
-      );
-    this.containerEl.createEl("h3", { text: "DeepSeek API" });
-    new Setting(this.containerEl).setName("模型").addText((text) =>
-      text.setValue(settings.model).onChange(async (model) => {
-        await this.plugin.updateSettings({
-          ...this.plugin.getSettings(),
-          model: normalizeConfiguredModel("deepseek", model)
-        });
-      })
-    );
-    new Setting(this.containerEl).setName("API 地址").addText((text) =>
-      text
-        .setPlaceholder("留空使用 DeepSeek 官方地址")
-        .setValue(settings.baseUrl)
-        .onChange(async (baseUrl) => {
-          await this.plugin.updateSettings({
-            ...this.plugin.getSettings(),
-            baseUrl
-          });
-        })
-    );
-    new Setting(this.containerEl).setName("API Key").addText((text) => {
-      text.inputEl.type = "password";
-      text
-        .setValue(this.plugin.getApiKey())
-        .onChange((value) => this.plugin.setApiKey(value));
-    });
-    new Setting(this.containerEl)
-      .setName("Obsidian Markdown 兼容模式")
-      .setDesc("约束 AI 输出格式、保护流式未闭合语法，并在完成后保守规范化")
-      .addToggle((toggle) =>
-        toggle
-          .setValue(settings.obsidianMarkdownCompatibility)
-          .onChange(async (obsidianMarkdownCompatibility) => {
-            await this.plugin.updateSettings({
-              ...this.plugin.getSettings(),
-              obsidianMarkdownCompatibility
-            });
-          })
-      );
-    new Setting(this.containerEl)
-      .setName("联网模式")
-      .setDesc("开启后，DeepSeek 会根据问题自动判断是否需要搜索网页。当前仅支持 DeepSeek。")
-      .addToggle((toggle) => {
-        const sync = (): void => {
-          const current = this.plugin.getSettings();
-          toggle.setValue(current.webSearchEnabled);
-          toggle.setDisabled(current.provider !== "deepseek");
-        };
-        sync();
-        toggle.onChange(async (webSearchEnabled) => {
-          await this.plugin.updateSettings({
-            ...this.plugin.getSettings(),
-            webSearchEnabled
-          });
-        });
-        this.webSearchUnsubscribe = this.plugin.subscribeWebSearch(sync);
-      });
-    this.containerEl.createEl("h3", { text: "关联笔记" });
-    new Setting(this.containerEl)
-      .setName("关联笔记上下文")
-      .setDesc("沿笔记中的正向和反向内部链接读取关联笔记。两种方向享有相同的读取、递归和上下文优先级，并发送按路径去重、保留真实链接方向的关联图。输入框按钮与此处实时同步。")
-      .addToggle((toggle) =>
-        toggle
-          .setValue(settings.relatedNoteContextEnabled)
-          .onChange(async (relatedNoteContextEnabled) => {
-            await this.plugin.updateSettings({
-              ...this.plugin.getSettings(),
-              relatedNoteContextEnabled
-            });
-          })
-      );
-
-    const depthPresets = new Set([1, 2, 3, 5, 10]);
-    const depthMode =
-      settings.relatedNoteDepth === "unlimited"
-        ? "unlimited"
-        : depthPresets.has(settings.relatedNoteDepth)
-          ? String(settings.relatedNoteDepth)
-          : "custom";
-    let customDepthInput: HTMLInputElement | undefined;
-    new Setting(this.containerEl)
-      .setName("关联笔记深度")
-      .setDesc("当前框选笔记为第 0 层。无限模式会读取所有通过正向或反向链接可达的 Markdown 笔记，并自动处理循环和重复节点。")
-      .addDropdown((dropdown) => {
-        dropdown
-          .addOptions({
-            "1": "1 层",
-            "2": "2 层",
-            "3": "3 层",
-            "5": "5 层",
-            "10": "10 层",
-            custom: "自定义",
-            unlimited: "无限"
-          })
-          .setValue(depthMode)
-          .setDisabled(!settings.relatedNoteContextEnabled)
-          .onChange(async (value) => {
-            if (value === "custom") {
-              if (customDepthInput !== undefined) {
-                customDepthInput.disabled = false;
-                customDepthInput.focus();
-              }
-              return;
-            }
-            const relatedNoteDepth =
-              value === "unlimited" ? "unlimited" : Number.parseInt(value, 10);
-            await this.plugin.updateSettings({
-              ...this.plugin.getSettings(),
-              relatedNoteDepth
-            });
-          });
-      })
-      .addText((text) => {
-        customDepthInput = text.inputEl;
-        text.inputEl.type = "number";
-        text.inputEl.min = "1";
-        text.inputEl.step = "1";
-        const numericDepth =
-          typeof settings.relatedNoteDepth === "number"
-            ? settings.relatedNoteDepth
-            : 1;
-        text
-          .setPlaceholder("自定义深度")
-          .setValue(String(numericDepth))
-          .setDisabled(
-            !settings.relatedNoteContextEnabled || depthMode !== "custom"
-          )
-          .onChange(async (raw) => {
-            const value = Number.parseInt(raw, 10);
-            if (!Number.isInteger(value) || value < 1) return;
-            await this.plugin.updateSettings({
-              ...this.plugin.getSettings(),
-              relatedNoteDepth: value
-            });
-          });
-      });
-
-    new Setting(this.containerEl)
-      .setName("知识沉淀文件夹")
-      .setDesc("单个回答将保存为可自由编辑的纯 Markdown 笔记")
-      .addText((text) =>
-        text
-          .setPlaceholder("TreeTalk 知识")
-          .setValue(settings.knowledgeFolder)
-          .onChange(async (knowledgeFolder) => {
-            await this.plugin.updateSettings({
-              ...this.plugin.getSettings(),
-              knowledgeFolder:
-                knowledgeFolder.trim().length > 0
-                  ? knowledgeFolder.trim()
-                  : DEFAULT_SETTINGS.knowledgeFolder
-            });
-          })
-      );
-    new Setting(this.containerEl)
-      .setName("沉淀对话树目录")
-      .setDesc("每次沉淀会在该目录中创建纯 Markdown 对话树文件夹")
-      .addText((text) =>
-        text
-          .setPlaceholder("TreeTalk")
-          .setValue(settings.treeCaptureFolder)
-          .onChange(async (treeCaptureFolder) => {
-            await this.plugin.updateSettings({
-              ...this.plugin.getSettings(),
-              treeCaptureFolder:
-                treeCaptureFolder.trim().length > 0
-                  ? treeCaptureFolder.trim()
-                  : DEFAULT_SETTINGS.treeCaptureFolder
-            });
-          })
-      );
-
-    const syncControls = (): void => this.display();
-    this.controlStateUnsubscribe =
-      this.plugin.subscribeComposerControls(syncControls);
-  }
-
-  hide(): void {
-    this.webSearchUnsubscribe?.();
-    this.webSearchUnsubscribe = undefined;
-    this.controlStateUnsubscribe?.();
-    this.controlStateUnsubscribe = undefined;
   }
 }

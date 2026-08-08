@@ -28,9 +28,10 @@ void test("send freezes context divergence before mutating conversation state",(
 
 void test("composer and settings expose one synchronized context divergence control",()=>{
   const view=read("src/views/conversation-view.ts");const obsidian=read("src/views/obsidian-views.ts");const main=read("src/main.ts");const css=read("styles.css");
+  const settings=read("src/settings-tab.ts");
   assert.match(view,/ContextDivergenceControlPort/u);assert.match(view,/treetalk-context-divergence-toggle/u);assert.match(view,/setIcon\(contextDivergence, "git-fork"\)/u);
   const order=view.indexOf("relatedNotes,\n      contextDivergence,\n      answerThinking,\n      webSearch");assert.ok(order>=0);
   assert.match(obsidian,/ContextDivergenceControlPort/u);assert.match(main,/contextDivergenceEnabled:\s*\(\)\s*=>\s*this\.pluginSettings\.contextDivergenceEnabled/u);
-  assert.match(main,/上下文发散/u);assert.match(main,/开启后，Pi 可在当前权限范围内跨级请求可用上下文/u);
+  assert.match(settings,/上下文发散/u);assert.match(settings,/开启后，Pi 可在当前权限范围内跨级请求可用上下文/u);
   assert.match(css,/\.treetalk-context-divergence-toggle/u);
 });

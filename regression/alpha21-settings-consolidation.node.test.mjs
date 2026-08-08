@@ -99,15 +99,15 @@ void test("explicit enabled thinking survives normalization while auto becomes d
 });
 
 void test("settings expose only DeepSeek API and binary thinking", () => {
-  const main = fs.readFileSync(path.join(root, "src/main.ts"), "utf8");
-  assert.match(main, /createEl\("h3",\s*\{\s*text:\s*"DeepSeek API"\s*\}\)/u);
-  assert.doesNotMatch(main, /\.setName\("执行引擎"\)/u);
-  assert.doesNotMatch(main, /\.setName\("服务类型"\)/u);
-  assert.doesNotMatch(main, /\.setName\("平衡模式"\)/u);
-  assert.doesNotMatch(main, /\.setName\("完整笔记上下文"\)/u);
-  assert.doesNotMatch(main, /\.setName\("单篇笔记上下文上限"\)/u);
-  assert.match(main, /\.setName\("回答思考模式"\)[\s\S]*?\.addToggle/u);
-  assert.doesNotMatch(main, /auto:\s*"自动"/u);
+  const settings = fs.readFileSync(path.join(root, "src/settings-tab.ts"), "utf8");
+  assert.match(settings, /name: "DeepSeek API"/u);
+  assert.doesNotMatch(settings, /\.setName\("执行引擎"\)/u);
+  assert.doesNotMatch(settings, /\.setName\("服务类型"\)/u);
+  assert.doesNotMatch(settings, /\.setName\("平衡模式"\)/u);
+  assert.doesNotMatch(settings, /\.setName\("完整笔记上下文"\)/u);
+  assert.doesNotMatch(settings, /\.setName\("单篇笔记上下文上限"\)/u);
+  assert.match(settings, /name: "回答思考模式"[\s\S]*?type: "toggle"/u);
+  assert.doesNotMatch(settings, /auto:\s*"自动"/u);
 });
 
 void test("composer removes engine switching and toggles thinking only on or off", () => {

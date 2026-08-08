@@ -38,9 +38,10 @@ test("streaming output defaults on and explicit false survives parsing", () => {
 
 test("settings UI and execution request expose the streaming switch", () => {
   const main = fs.readFileSync(path.join(root, "src/main.ts"), "utf8");
+  const settings = fs.readFileSync(path.join(root, "src/settings-tab.ts"), "utf8");
   const types = fs.readFileSync(path.join(root, "src/execution/types.ts"), "utf8");
-  assert.match(main, /\.setName\("流式输出"\)/u);
-  assert.match(main, /开启后回答会边生成边显示；关闭后等待完整回答后一次性显示。/u);
+  assert.match(settings, /name: "流式输出"/u);
+  assert.match(settings, /开启后回答会边生成边显示；关闭后等待完整回答后一次性显示。/u);
   assert.match(main, /streamingOutputEnabled:\s*this\.pluginSettings\.streamingOutputEnabled/u);
   assert.match(types, /streamingOutputEnabled\?:\s*boolean/u);
 });

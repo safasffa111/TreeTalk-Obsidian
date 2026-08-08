@@ -77,10 +77,11 @@ void test("legacy optimization settings normalize to full mode", () => {
 
 void test("settings no longer expose balanced or note compression controls", () => {
   const mainSource = fs.readFileSync(path.join(root, "src/main.ts"), "utf8");
+  const settingsSource = fs.readFileSync(path.join(root, "src/settings-tab.ts"), "utf8");
   assert.doesNotMatch(mainSource, /\.setName\("平衡模式"\)/u);
   assert.doesNotMatch(mainSource, /\.setName\("完整笔记上下文"\)/u);
   assert.doesNotMatch(mainSource, /\.setName\("单篇笔记上下文上限"\)/u);
-  assert.match(mainSource, /createEl\("h3", \{ text: "关联笔记" \}\)/u);
+  assert.match(settingsSource, /name: "关联笔记"/u);
 });
 
 void test("user message bubble stays close to the rendered text size", () => {
@@ -95,13 +96,14 @@ void test("user message bubble stays close to the rendered text size", () => {
 
 test("settings and composer expose one synchronized web-search state", () => {
   const mainSource = fs.readFileSync(path.join(root, "src/main.ts"), "utf8");
+  const settingsSource = fs.readFileSync(path.join(root, "src/settings-tab.ts"), "utf8");
   const viewSource = fs.readFileSync(path.join(root, "src/views/conversation-view.ts"), "utf8");
-  assert.match(mainSource, /\.setName\("联网模式"\)/u);
-  assert.match(mainSource, /开启后，DeepSeek 会根据问题自动判断是否需要搜索网页。当前仅支持 DeepSeek。/u);
+  assert.match(settingsSource, /name: "联网模式"/u);
+  assert.match(settingsSource, /开启后，DeepSeek 会根据问题自动判断是否需要搜索网页。当前仅支持 DeepSeek。/u);
   assert.match(viewSource, /treetalk-web-search-toggle/u);
   assert.match(viewSource, /aria-pressed/u);
   assert.match(viewSource, /subscribe/u);
   assert.match(mainSource, /subscribeWebSearch\(listener/u);
-  assert.match(mainSource, /webSearchUnsubscribe/u);
-  assert.match(mainSource, /toggle\.setValue\(current\.webSearchEnabled\)/u);
+  assert.match(settingsSource, /unsubscribeWebSearch/u);
+  assert.match(settingsSource, /provider !== "deepseek"/u);
 });
