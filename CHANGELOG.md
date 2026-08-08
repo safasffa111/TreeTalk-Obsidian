@@ -1,5 +1,11 @@
 # TreeTalk Changelog
 
+## 0.9.4: Review compliance for graph maximize
+
+- Clear the maximized window's inline geometry with `removeProperty` instead of
+  static style assignments, satisfying the Obsidian `no-static-styles-assignment`
+  rule while keeping the maximize behavior unchanged.
+
 ## 0.9.3: Fix graph maximize and README refresh
 
 - Fix the relationship graph maximize button: inline geometry from the normal
