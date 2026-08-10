@@ -4,6 +4,18 @@ import { BatchedPersistenceScheduler } from "../../src/storage/persistence-sched
 afterEach(() => vi.useRealTimers());
 
 describe("BatchedPersistenceScheduler", () => {
+  it("waits 1000 ms by default before a routine persistence pass", () => {
+    vi.useFakeTimers();
+    const persist = vi.fn();
+    const scheduler = new BatchedPersistenceScheduler(persist);
+
+    scheduler.schedule();
+    vi.advanceTimersByTime(999);
+    expect(persist).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(persist).toHaveBeenCalledOnce();
+  });
+
   it("coalesces rapid streaming updates into one persistence pass", () => {
     vi.useFakeTimers();
     const persist = vi.fn();

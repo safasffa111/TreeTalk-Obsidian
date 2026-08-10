@@ -84,7 +84,9 @@ export function renderTreePanel(
     };
   });
 
-  const unsubscribe = store.subscribe(render);
+  const unsubscribe = store.subscribe((change) => {
+    if (change?.kind !== "message-delta") render();
+  });
   render();
   return () => {
     unsubscribe();

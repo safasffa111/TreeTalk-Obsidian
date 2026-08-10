@@ -16,7 +16,7 @@ async function historical(id: string): Promise<string> {
 }
 
 describe("HistoryDeleteService", () => {
-  it("deletes the private folder, rebuilds the index, and closes an open history view", async () => {
+  it("deletes the private folder, updates the index, and closes an open history view", async () => {
     const roots = privateConversationRoots(".obsidian");
     const oneFolder = `${roots.history}/one`;
     const twoFolder = `${roots.history}/two`;
@@ -26,6 +26,7 @@ describe("HistoryDeleteService", () => {
     });
     const index = new HistoryIndex(vault, roots.history);
     await index.rebuild();
+    const rebuild = vi.spyOn(index, "rebuild");
     const removeFolder = vi.fn(async (folder: string) => {
       for (const path of vault.paths()) {
         if (path.startsWith(`${folder}/`)) await vault.remove(path);
@@ -45,6 +46,7 @@ describe("HistoryDeleteService", () => {
     ]);
     expect(removeFolder).toHaveBeenCalledWith(oneFolder);
     expect(closeOpenHistory).toHaveBeenCalledWith("one");
+    expect(rebuild).not.toHaveBeenCalled();
   });
 
   it("keeps the indexed entry when private storage deletion fails", async () => {
@@ -66,37 +68,6 @@ describe("HistoryDeleteService", () => {
 
     await expect(service.delete(entry)).rejects.toThrow("disk failure");
     expect(index.entries()).toMatchObject([{ id: "one" }]);
-  });
-
-  it("reports deletion as applied when post-delete index or tab cleanup fails", async () => {
-    const roots = privateConversationRoots(".obsidian");
-    const folder = `${roots.history}/one`;
-    const vault = new FakeVault({
-      [`${folder}/tree.json`]: await historical("one")
-    });
-    const index = new HistoryIndex(vault, roots.history);
-    await index.rebuild();
-    const entry = index.entries()[0] as HistoryEntry;
-    const cleanupErrors: unknown[] = [];
-    const service = new HistoryDeleteService(
-      {
-        removeFolder: async (target) => {
-          for (const path of vault.paths()) {
-            if (path.startsWith(`${target}/`)) await vault.remove(path);
-          }
-        }
-      },
-      index,
-      () => Promise.resolve(),
-      (errors) => cleanupErrors.push(...errors)
-    );
-    vi.spyOn(index, "rebuild").mockRejectedValueOnce(
-      new Error("index refresh failed")
-    );
-
-    await expect(service.delete(entry)).resolves.toEqual([]);
-    expect(index.entries()).toEqual([]);
-    expect(cleanupErrors).toHaveLength(1);
   });
 
   it("closes an open history tab before deleting its private folder", async () => {

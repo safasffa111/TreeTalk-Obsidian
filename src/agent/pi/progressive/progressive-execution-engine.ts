@@ -544,7 +544,7 @@ export class ProgressivePiExecutionEngine implements ExecutionEngine {
               role: "user",
               content: buildProgressiveContinuationMessage()
             });
-            runState.lastSentMessages = structuredClone(runState.messages);
+            runState.lastSentMessages = runState.messages.slice();
             continue;
           }
           yield {
@@ -598,7 +598,7 @@ export class ProgressivePiExecutionEngine implements ExecutionEngine {
               "Pi repeatedly requested context after expansion was disabled"
             );
           }
-          runState.lastSentMessages = structuredClone(runState.messages);
+          runState.lastSentMessages = runState.messages.slice();
           yield {
             type: "progressive-run-checkpoint",
             checkpoint: runState.toCheckpoint()
@@ -734,7 +734,7 @@ export class ProgressivePiExecutionEngine implements ExecutionEngine {
               finishedAt: this.now()
             };
           }
-          runState.lastSentMessages = structuredClone(runState.messages);
+          runState.lastSentMessages = runState.messages.slice();
           yield {
             type: "progressive-run-checkpoint",
             checkpoint: runState.toCheckpoint()
@@ -1099,7 +1099,7 @@ export class ProgressivePiExecutionEngine implements ExecutionEngine {
           }
         }
 
-        runState.lastSentMessages = structuredClone(runState.messages);
+        runState.lastSentMessages = runState.messages.slice();
         yield {
           type: "progressive-run-checkpoint",
           checkpoint: runState.toCheckpoint()

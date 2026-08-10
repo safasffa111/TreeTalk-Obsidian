@@ -18,16 +18,22 @@ function setup(mode: "active" | "archived" = "active") {
   const archive = new FakeArchiveLifecycle();
   const persistence = new FakeTabPersistence();
   const saveWorkspace = vi.fn(() => Promise.resolve());
+  const historyIndex = {
+    upsert: vi.fn(),
+    remove: vi.fn()
+  };
   const controller = new TabLifecycleController(
     tabsStore,
     persistence,
     archive,
     new LifecycleQueue(),
-    saveWorkspace
+    saveWorkspace,
+    historyIndex
   );
   return {
     archive,
     controller,
+    historyIndex,
     persistence,
     saveWorkspace,
     tabsStore
@@ -36,7 +42,13 @@ function setup(mode: "active" | "archived" = "active") {
 
 describe("TabLifecycleController", () => {
   it("archives an active tab before removing it", async () => {
-    const { archive, controller, persistence, tabsStore } = setup();
+    const {
+      archive,
+      controller,
+      historyIndex,
+      persistence,
+      tabsStore
+    } = setup();
 
     const closing = controller.close("one");
     expect(tabsStore.getTab("one")?.lifecycle).toBe("closing");
@@ -44,16 +56,29 @@ describe("TabLifecycleController", () => {
 
     expect(persistence.flushed).toEqual([ACTIVE_FOLDER]);
     expect(archive.archivedFolders).toEqual([ACTIVE_FOLDER]);
+    expect(historyIndex.upsert).toHaveBeenCalledWith(
+      HISTORY_FOLDER,
+      expect.objectContaining({ id: "one", status: "archived" })
+    );
+    expect(historyIndex.remove).not.toHaveBeenCalled();
     expect(tabsStore.getTab("one")).toBeUndefined();
   });
 
   it("keeps the tab open when saving fails", async () => {
-    const { archive, controller, persistence, tabsStore } = setup();
+    const {
+      archive,
+      controller,
+      historyIndex,
+      persistence,
+      tabsStore
+    } = setup();
     persistence.failFlush(new Error("save is blocked"));
 
     await expect(controller.close("one")).rejects.toThrow("save is blocked");
 
     expect(archive.archivedFolders).toEqual([]);
+    expect(historyIndex.upsert).not.toHaveBeenCalled();
+    expect(historyIndex.remove).not.toHaveBeenCalled();
     expect(tabsStore.getTab("one")).toMatchObject({
       lifecycle: "idle",
       mode: "active"
@@ -61,7 +86,7 @@ describe("TabLifecycleController", () => {
   });
 
   it("keeps the tab open when archive fails", async () => {
-    const { archive, controller, tabsStore } = setup();
+    const { archive, controller, historyIndex, tabsStore } = setup();
     archive.failArchive(new Error("destination exists"));
 
     await expect(controller.close("one")).rejects.toThrow("destination exists");
@@ -70,21 +95,32 @@ describe("TabLifecycleController", () => {
       lifecycle: "idle",
       mode: "active"
     });
+    expect(historyIndex.upsert).not.toHaveBeenCalled();
+    expect(historyIndex.remove).not.toHaveBeenCalled();
   });
 
   it("dismisses an archived tab without moving files", async () => {
-    const { archive, controller, persistence, tabsStore } = setup("archived");
+    const {
+      archive,
+      controller,
+      historyIndex,
+      persistence,
+      tabsStore
+    } = setup("archived");
 
     await controller.close("one");
 
     expect(archive.archivedFolders).toEqual([]);
     expect(persistence.flushed).toEqual([]);
+    expect(historyIndex.upsert).not.toHaveBeenCalled();
+    expect(historyIndex.remove).not.toHaveBeenCalled();
     expect(tabsStore.getTab("one")).toBeUndefined();
   });
 
   it("restores a historical tab in place", async () => {
     const {
       controller,
+      historyIndex,
       persistence,
       saveWorkspace,
       tabsStore
@@ -102,10 +138,12 @@ describe("TabLifecycleController", () => {
       ACTIVE_FOLDER
     ]);
     expect(saveWorkspace).toHaveBeenCalled();
+    expect(historyIndex.remove).toHaveBeenCalledWith("one");
+    expect(historyIndex.upsert).not.toHaveBeenCalled();
   });
 
   it("leaves a failed restore read-only", async () => {
-    const { archive, controller, tabsStore } = setup("archived");
+    const { archive, controller, historyIndex, tabsStore } = setup("archived");
     archive.failRestore(new Error("active destination exists"));
 
     await expect(controller.restore("one")).rejects.toThrow(
@@ -117,5 +155,7 @@ describe("TabLifecycleController", () => {
       lifecycle: "idle",
       folder: HISTORY_FOLDER
     });
+    expect(historyIndex.upsert).not.toHaveBeenCalled();
+    expect(historyIndex.remove).not.toHaveBeenCalled();
   });
 });

@@ -84,6 +84,7 @@ const REQUEST: ExecutionRequest = {
 describe("PiExecutionEngine", () => {
   it("protects local focus before producing the final Pi answer", async () => {
     const requests: unknown[] = [];
+    let receivedSignal: AbortSignal | undefined;
     const replies = [
       {
         status: 200,
@@ -117,7 +118,8 @@ describe("PiExecutionEngine", () => {
     ];
     const engine = new PiExecutionEngine({
     strategy: "two-pass",
-      bufferedRequest: async (request) => {
+      bufferedRequest: async (request, signal) => {
+        receivedSignal = signal;
         requests.push(request);
         const reply = replies.shift();
         if (reply === undefined) throw new Error("Unexpected Pi request");
@@ -126,14 +128,16 @@ describe("PiExecutionEngine", () => {
       now: () => "2026-08-04T00:00:00.000Z"
     });
     const events: ExecutionEvent[] = [];
+    const caller = new AbortController();
     for await (const event of engine.execute(
       REQUEST,
-      new AbortController().signal
+      caller.signal
     )) {
       events.push(event);
     }
 
     expect(requests).toHaveLength(2);
+    expect(receivedSignal).toBe(caller.signal);
     expect(JSON.stringify(requests[1])).toContain("Local Focus Evidence");
     expect(JSON.stringify(requests[1])).toContain("高斯公式父节点回答");
     expect(JSON.stringify(requests[1])).toContain("Response Target");

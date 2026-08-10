@@ -6,6 +6,19 @@ export interface ConversationSwitcherActions {
   reorder(conversationId: string, targetIndex: number): void;
 }
 
+function switcherSignature(store: ConversationTabsStore): string {
+  const state = store.getSnapshot();
+  return JSON.stringify([
+    state.activeTabId,
+    state.orderedTabIds.map((tabId) => {
+      const tab = state.tabs[tabId];
+      return tab === undefined
+        ? [tabId]
+        : [tab.id, tab.title, tab.unread, tab.mode, tab.lifecycle];
+    })
+  ]);
+}
+
 export function renderConversationSwitcher(
   container: HTMLElement,
   store: ConversationTabsStore,
@@ -117,7 +130,13 @@ export function renderConversationSwitcher(
     container.append(list);
   };
 
-  const unsubscribe = store.subscribe(render);
+  let renderedSignature = switcherSignature(store);
+  const unsubscribe = store.subscribe(() => {
+    const nextSignature = switcherSignature(store);
+    if (nextSignature === renderedSignature) return;
+    renderedSignature = nextSignature;
+    render();
+  });
   render();
   return unsubscribe;
 }

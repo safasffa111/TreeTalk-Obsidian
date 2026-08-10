@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ActiveResponseRequests } from "../../src/providers/active-response-requests";
+import { TextDeltaBatcher } from "../../src/execution/text-delta-batcher";
 import { ActiveConversationStore } from "../../src/tabs/active-conversation-store";
 import { TabResponseRouter } from "../../src/tabs/tab-response-router";
 import { conversationTabsStore } from "../helpers/tab-fixtures";
@@ -16,7 +17,16 @@ describe("ActiveResponseRequests", () => {
       modelId: "model",
       now: "2026-07-30T00:00:00.000Z"
     });
-    const requests = new ActiveResponseRequests(router);
+    const terminalEvents: Array<{
+      conversationId: string;
+      status: "complete" | "interrupted" | "failed";
+    }> = [];
+    const requests = new ActiveResponseRequests(
+      router,
+      undefined,
+      undefined,
+      (event) => terminalEvents.push(event)
+    );
     const handle = requests.begin("one", ticket, "stream");
 
     requests.interrupt("one", "2026-07-30T00:00:01.000Z");
@@ -26,6 +36,9 @@ describe("ActiveResponseRequests", () => {
     expect(
       tabs.getTab("one")?.conversation.nodes.child?.messages.at(-1)?.status
     ).toBe("interrupted");
+    expect(terminalEvents).toEqual([
+      { conversationId: "one", status: "interrupted" }
+    ]);
   });
   it("forwards normalized final content on successful completion", () => {
     const tabs = conversationTabsStore("one");
@@ -294,6 +307,152 @@ describe("ActiveResponseRequests", () => {
     expect(afterFlush?.content).toBe("final");
     expect(afterFlush?.agentRun?.status).toBe("completed");
     expect(afterFlush?.agentRun?.stages).toHaveLength(1);
+  });
+
+  it("flushes coalesced text before successful completion", () => {
+    const tabs = conversationTabsStore("one");
+    const router = new TabResponseRouter(tabs);
+    const ticket = router.capture("one", "child");
+    router.start(ticket, {
+      conversationId: "one",
+      nodeId: "child",
+      messageId: "stream",
+      modelId: "model",
+      now: "2026-08-10T00:00:00.000Z"
+    });
+    let scheduled: (() => void) | undefined;
+    const requests = new ActiveResponseRequests(
+      router,
+      undefined,
+      (deliver) =>
+        new TextDeltaBatcher(deliver, {
+          schedule: (run) => {
+            scheduled = run;
+            return 1;
+          },
+          cancel: () => undefined
+        })
+    );
+    const handle = requests.begin("one", ticket, "stream");
+
+    requests.appendText(handle, "A", "2026-08-10T00:00:00.100Z");
+    requests.appendText(handle, "B", "2026-08-10T00:00:00.200Z");
+    expect(scheduled).toBeDefined();
+    expect(
+      tabs.getTab("one")?.conversation.nodes.child?.messages.at(-1)?.content
+    ).toBe("");
+
+    requests.finish(handle, "complete", "2026-08-10T00:00:01.000Z");
+
+    expect(
+      tabs.getTab("one")?.conversation.nodes.child?.messages.at(-1)
+    ).toMatchObject({ content: "AB", status: "complete" });
+  });
+
+  it("notifies once after pending text and terminal state are committed", () => {
+    const tabs = conversationTabsStore("one");
+    const router = new TabResponseRouter(tabs);
+    const ticket = router.capture("one", "child");
+    router.start(ticket, {
+      conversationId: "one",
+      nodeId: "child",
+      messageId: "stream",
+      modelId: "model",
+      now: "2026-08-10T00:00:00.000Z"
+    });
+    const terminalSnapshots: Array<{
+      event: { conversationId: string; status: string };
+      content: string | undefined;
+      messageStatus: string | undefined;
+    }> = [];
+    const requests = new ActiveResponseRequests(
+      router,
+      undefined,
+      (deliver) =>
+        new TextDeltaBatcher(deliver, {
+          schedule: () => 1,
+          cancel: () => undefined
+        }),
+      (event) => {
+        const message =
+          tabs.getTab("one")?.conversation.nodes.child?.messages.at(-1);
+        terminalSnapshots.push({
+          event,
+          content: message?.content,
+          messageStatus: message?.status
+        });
+      }
+    );
+    const handle = requests.begin("one", ticket, "stream");
+    requests.appendText(handle, "tail", "2026-08-10T00:00:00.100Z");
+
+    requests.finish(handle, "complete", "2026-08-10T00:00:01.000Z");
+    requests.finish(handle, "complete", "2026-08-10T00:00:02.000Z");
+
+    expect(terminalSnapshots).toEqual([
+      {
+        event: { conversationId: "one", status: "complete" },
+        content: "tail",
+        messageStatus: "complete"
+      }
+    ]);
+  });
+
+  it("flushes coalesced text before interruption", () => {
+    const tabs = conversationTabsStore("one");
+    const router = new TabResponseRouter(tabs);
+    const ticket = router.capture("one", "child");
+    router.start(ticket, {
+      conversationId: "one",
+      nodeId: "child",
+      messageId: "stream",
+      modelId: "model",
+      now: "2026-08-10T00:00:00.000Z"
+    });
+    const requests = new ActiveResponseRequests(
+      router,
+      undefined,
+      (deliver) =>
+        new TextDeltaBatcher(deliver, {
+          schedule: () => 1,
+          cancel: () => undefined
+        })
+    );
+    const handle = requests.begin("one", ticket, "stream");
+    requests.appendText(handle, "partial", "2026-08-10T00:00:00.100Z");
+
+    requests.interrupt("one", "2026-08-10T00:00:01.000Z");
+
+    expect(
+      tabs.getTab("one")?.conversation.nodes.child?.messages.at(-1)
+    ).toMatchObject({ content: "partial", status: "interrupted" });
+  });
+
+  it("drops pending text safely after its tab has been removed", () => {
+    const tabs = conversationTabsStore("one");
+    const router = new TabResponseRouter(tabs);
+    const ticket = router.capture("one", "child");
+    router.start(ticket, {
+      conversationId: "one",
+      nodeId: "child",
+      messageId: "stream",
+      modelId: "model",
+      now: "2026-08-10T00:00:00.000Z"
+    });
+    const requests = new ActiveResponseRequests(
+      router,
+      undefined,
+      (deliver) =>
+        new TextDeltaBatcher(deliver, {
+          schedule: () => 1,
+          cancel: () => undefined
+        })
+    );
+    const handle = requests.begin("one", ticket, "stream");
+    requests.appendText(handle, "orphaned", "2026-08-10T00:00:00.100Z");
+    tabs.remove("one");
+
+    expect(() => requests.release(handle)).not.toThrow();
   });
 
 });

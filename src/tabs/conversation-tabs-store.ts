@@ -1,11 +1,28 @@
-import { parseConversation } from "../domain/schema";
+import {
+  isParsedConversation,
+  parseConversation
+} from "../domain/schema";
 import type { ConversationFile } from "../domain/types";
 import type {
   ConversationTab,
   ConversationTabsState
 } from "./types";
 
-export type TabsListener = () => void;
+export type TabsChange =
+  | { kind: "full" }
+  | {
+      kind: "message-delta";
+      tabId: string;
+      nodeId: string;
+      messageId: string;
+    };
+
+export type TabUpdateHint = Omit<
+  Extract<TabsChange, { kind: "message-delta" }>,
+  "tabId"
+>;
+
+export type TabsListener = (change: TabsChange) => void;
 export type TabUpdater = (tab: ConversationTab) => ConversationTab;
 export type ConversationUpdater = (
   conversation: ConversationFile
@@ -20,7 +37,9 @@ function deepFreeze<T>(value: T): T {
 }
 
 function normalizeTab(tab: ConversationTab): ConversationTab {
-  const conversation = parseConversation(structuredClone(tab.conversation));
+  const conversation = isParsedConversation(tab.conversation)
+    ? tab.conversation
+    : parseConversation(structuredClone(tab.conversation));
   if (tab.id.length === 0 || tab.conversationId.length === 0) {
     throw new Error("Tab identity cannot be empty");
   }
@@ -34,7 +53,7 @@ function normalizeTab(tab: ConversationTab): ConversationTab {
     throw new Error("Tab mode does not match conversation status");
   }
   return deepFreeze({
-    ...structuredClone(tab),
+    ...tab,
     title: tab.title.trim().length > 0 ? tab.title : conversation.title,
     conversation
   });
@@ -104,7 +123,7 @@ export class ConversationTabsStore {
       throw new Error(`Tab already exists: ${normalized.id}`);
     }
     this.replace({
-      ...structuredClone(this.state),
+      ...this.state,
       activeTabId: normalized.id,
       orderedTabIds: [...this.state.orderedTabIds, normalized.id],
       tabs: { ...this.state.tabs, [normalized.id]: normalized }
@@ -117,11 +136,11 @@ export class ConversationTabsStore {
     if (selected === undefined) throw new Error(`Tab not found: ${tabId}`);
     if (this.state.activeTabId === tabId && !selected.unread) return;
     this.replace({
-      ...structuredClone(this.state),
+      ...this.state,
       activeTabId: tabId,
       tabs: {
         ...this.state.tabs,
-        [tabId]: normalizeTab({ ...structuredClone(selected), unread: false })
+        [tabId]: normalizeTab({ ...selected, unread: false })
       }
     });
   }
@@ -162,25 +181,32 @@ export class ConversationTabsStore {
     const orderedTabIds = [...this.state.orderedTabIds];
     orderedTabIds.splice(sourceIndex, 1);
     orderedTabIds.splice(boundedTarget, 0, tabId);
-    this.replace({ ...structuredClone(this.state), orderedTabIds });
+    this.replace({ ...this.state, orderedTabIds });
   }
 
-  updateTab(tabId: string, updater: TabUpdater): void {
+  updateTab(
+    tabId: string,
+    updater: TabUpdater,
+    hint?: TabUpdateHint
+  ): void {
     const current = this.state.tabs[tabId];
     if (current === undefined) throw new Error(`Tab not found: ${tabId}`);
-    const updated = normalizeTab(updater(structuredClone(current)));
+    const updated = normalizeTab(updater(current));
     if (updated.id !== tabId || updated.conversationId !== current.conversationId) {
       throw new Error("Tab updater cannot change tab identity");
     }
-    this.replace({
-      ...structuredClone(this.state),
-      tabs: { ...this.state.tabs, [tabId]: updated }
-    });
+    this.replace(
+      {
+        ...this.state,
+        tabs: { ...this.state.tabs, [tabId]: updated }
+      },
+      hint === undefined ? { kind: "full" } : { ...hint, tabId }
+    );
   }
 
   updateConversation(tabId: string, updater: ConversationUpdater): void {
     this.updateTab(tabId, (tab) => {
-      const conversation = parseConversation(updater(tab.conversation));
+      const conversation = updater(tab.conversation);
       return {
         ...tab,
         title: conversation.title,
@@ -190,9 +216,12 @@ export class ConversationTabsStore {
     });
   }
 
-  private replace(next: ConversationTabsState): void {
+  private replace(
+    next: ConversationTabsState,
+    change: TabsChange = { kind: "full" }
+  ): void {
     validateState(next);
-    this.state = deepFreeze(structuredClone(next));
-    for (const listener of this.listeners) listener();
+    this.state = deepFreeze(next);
+    for (const listener of this.listeners) listener(change);
   }
 }

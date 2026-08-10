@@ -6,6 +6,7 @@ export type PersistenceErrorHandler = (error: unknown) => void;
 interface PendingSave {
   folder: string;
   conversation: ConversationFile;
+  sequence: number;
 }
 
 function asError(value: unknown): Error {
@@ -16,7 +17,9 @@ export class SessionPersistence {
   private readonly revisions = new Map<string, number>();
   private readonly renamedFolders = new Map<string, string>();
   private readonly queues = new Map<string, Promise<void>>();
+  private readonly pending = new Map<string, PendingSave>();
   private readonly failures = new Map<string, Error>();
+  private nextSequence = 0;
 
   constructor(
     private readonly repository: ConversationRepository,
@@ -28,8 +31,14 @@ export class SessionPersistence {
   }
 
   forget(folder: string): void {
-    this.revisions.delete(folder);
-    this.failures.delete(folder);
+    const resolved = this.resolveFolder(folder);
+    this.revisions.delete(resolved);
+    this.failures.delete(resolved);
+    for (const candidate of [...this.pending.keys()]) {
+      if (this.resolveFolder(candidate) === resolved) {
+        this.pending.delete(candidate);
+      }
+    }
   }
 
   renameFolder(oldFolder: string, newFolder: string): void {
@@ -56,16 +65,73 @@ export class SessionPersistence {
     folder: string,
     conversation: ConversationFile
   ): void {
+    const resolvedFolder = this.resolveFolder(folder);
+    if (
+      this.revisions.get(resolvedFolder) === conversation.revision &&
+      !this.failures.has(resolvedFolder)
+    ) {
+      return;
+    }
     const pending: PendingSave = {
       folder,
-      conversation: structuredClone(conversation)
+      conversation: structuredClone(conversation),
+      sequence: this.nextSequence
     };
-    const queueFolder = this.resolveFolder(folder);
-    const previousQueues = this.queuesFor(queueFolder);
-    const previous = Promise.all(
-      previousQueues.map((queue) => queue.catch(() => undefined))
-    ).then(() => undefined);
-    const next = previous.then(async () => {
+    this.nextSequence += 1;
+    for (const candidate of [...this.pending.keys()]) {
+      if (this.resolveFolder(candidate) === resolvedFolder) {
+        this.pending.delete(candidate);
+      }
+    }
+    this.pending.set(resolvedFolder, pending);
+    this.ensureWorker(resolvedFolder);
+  }
+
+  async flush(folder?: string): Promise<void> {
+    const target = folder === undefined ? undefined : this.resolveFolder(folder);
+    while (true) {
+      const queues =
+        target === undefined
+          ? [...this.queues.values()]
+          : this.queuesFor(target);
+      if (queues.length === 0) {
+        const pendingFolder = this.pendingFolder(target);
+        if (pendingFolder === undefined) break;
+        this.ensureWorker(pendingFolder);
+        continue;
+      }
+      await Promise.all(queues);
+    }
+    const failures =
+      target === undefined
+        ? [...this.failures.values()]
+        : [...this.failures.entries()]
+            .filter(
+              ([candidate]) => this.resolveFolder(candidate) === target
+            )
+            .map(([, error]) => error);
+    const failure = failures[0];
+    if (failure !== undefined) throw failure;
+  }
+
+  private ensureWorker(folder: string): void {
+    const resolved = this.resolveFolder(folder);
+    if (this.queuesFor(resolved).length > 0) return;
+    const worker = Promise.resolve().then(() => this.drain(resolved));
+    this.queues.set(resolved, worker);
+    void worker.finally(() => {
+      if (this.queues.get(resolved) === worker) {
+        this.queues.delete(resolved);
+      }
+      const pendingFolder = this.pendingFolder(this.resolveFolder(resolved));
+      if (pendingFolder !== undefined) this.ensureWorker(pendingFolder);
+    });
+  }
+
+  private async drain(folder: string): Promise<void> {
+    while (true) {
+      const pending = this.takeLatestPending(this.resolveFolder(folder));
+      if (pending === undefined) return;
       try {
         await this.persist(pending);
         this.failures.delete(this.resolveFolder(pending.folder));
@@ -74,27 +140,27 @@ export class SessionPersistence {
         this.failures.set(this.resolveFolder(pending.folder), failure);
         this.onError?.(error);
       }
-    });
-    this.queues.set(queueFolder, next);
+    }
   }
 
-  async flush(folder?: string): Promise<void> {
-    const queues =
-      folder === undefined
-        ? [...this.queues.values()]
-        : this.queuesFor(this.resolveFolder(folder));
-    await Promise.all(queues);
-    const failures =
-      folder === undefined
-        ? [...this.failures.values()]
-        : [...this.failures.entries()]
-            .filter(
-              ([candidate]) =>
-                this.resolveFolder(candidate) === this.resolveFolder(folder)
-            )
-            .map(([, error]) => error);
-    const failure = failures[0];
-    if (failure !== undefined) throw failure;
+  private takeLatestPending(folder: string): PendingSave | undefined {
+    let latest: PendingSave | undefined;
+    for (const [candidate, pending] of [...this.pending.entries()]) {
+      if (this.resolveFolder(candidate) !== folder) continue;
+      this.pending.delete(candidate);
+      if (latest === undefined || pending.sequence > latest.sequence) {
+        latest = pending;
+      }
+    }
+    return latest;
+  }
+
+  private pendingFolder(target?: string): string | undefined {
+    for (const candidate of this.pending.keys()) {
+      const resolved = this.resolveFolder(candidate);
+      if (target === undefined || resolved === target) return resolved;
+    }
+    return undefined;
   }
 
   private async persist(pending: PendingSave): Promise<void> {

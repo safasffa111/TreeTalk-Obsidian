@@ -26,12 +26,12 @@ function request(): ExecutionRequest {
   };
 }
 
-async function collect(engine: LegacyExecutionEngine): Promise<ExecutionEvent[]> {
+async function collect(
+  engine: LegacyExecutionEngine,
+  signal = new AbortController().signal
+): Promise<ExecutionEvent[]> {
   const events: ExecutionEvent[] = [];
-  for await (const event of engine.execute(
-    request(),
-    new AbortController().signal
-  )) {
+  for await (const event of engine.execute(request(), signal)) {
     events.push(event);
   }
   return events;
@@ -99,6 +99,7 @@ describe("LegacyExecutionEngine", () => {
       { type: "delta", text: "fallback" },
       { type: "done" }
     ];
+    let receivedSignal: AbortSignal | undefined;
     const engine = new LegacyExecutionEngine({
       resolveAdapter: () => adapter,
       stream: async function* () {
@@ -109,10 +110,15 @@ describe("LegacyExecutionEngine", () => {
       },
       canUseBufferedFallback: (error) =>
         error instanceof Error && error.name === "StreamingUnavailableError",
-      bufferedRequest: async () => ({ status: 200, json: {} })
+      bufferedRequest: async (_request, signal) => {
+        receivedSignal = signal;
+        return { status: 200, json: {} };
+      }
     });
+    const caller = new AbortController();
 
-    const events = await collect(engine);
+    const events = await collect(engine, caller.signal);
+    expect(receivedSignal).toBe(caller.signal);
     expect(events).toContainEqual({ type: "text-delta", text: "fallback" });
     expect(events.at(-1)).toEqual({ type: "finish", reason: "stop" });
   });

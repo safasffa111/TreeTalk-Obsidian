@@ -1,10 +1,14 @@
-import { parseConversation } from "../domain/schema";
 import type { ConversationFile, DepositGraphPosition } from "../domain/types";
 import { setRelationshipNodePositions } from "../relationship-graph/state";
 import type { ConversationTabsStore } from "./conversation-tabs-store";
 import type { TabMode } from "./types";
 
-export type ConversationStoreListener = () => void;
+export type ConversationStoreChange =
+  | { kind: "full" }
+  | { kind: "message-delta"; nodeId: string; messageId: string };
+export type ConversationStoreListener = (
+  change?: ConversationStoreChange
+) => void;
 export type ConversationStoreUpdater = (
   conversation: ConversationFile
 ) => ConversationFile;
@@ -30,12 +34,25 @@ export class ActiveConversationStore implements ConversationStorePort {
   }
 
   subscribe(listener: ConversationStoreListener): () => void {
-    let previous = this.viewSignature();
-    return this.tabs.subscribe(() => {
-      const next = this.viewSignature();
+    let previous = this.tabs.getActiveTab();
+    return this.tabs.subscribe((change) => {
+      const next = this.tabs.getActiveTab();
       if (next === previous) return;
+      const previousTab = previous;
       previous = next;
-      listener();
+      if (
+        change.kind === "message-delta" &&
+        previousTab?.id === change.tabId &&
+        next?.id === change.tabId
+      ) {
+        listener({
+          kind: "message-delta",
+          nodeId: change.nodeId,
+          messageId: change.messageId
+        });
+        return;
+      }
+      listener({ kind: "full" });
     });
   }
 
@@ -54,9 +71,7 @@ export class ActiveConversationStore implements ConversationStorePort {
 
   update(updater: ConversationStoreUpdater): void {
     const tab = this.requireMutableActiveTab();
-    this.tabs.updateConversation(tab.id, (conversation) =>
-      parseConversation(updater(conversation))
-    );
+    this.tabs.updateConversation(tab.id, updater);
   }
 
   selectNode(nodeId: string): void {
@@ -99,17 +114,4 @@ export class ActiveConversationStore implements ConversationStorePort {
     return tab;
   }
 
-  private viewSignature(): string {
-    const tab = this.tabs.getActiveTab();
-    return tab === undefined
-      ? "empty"
-      : [
-          tab.id,
-          tab.mode,
-          tab.lifecycle,
-          tab.conversation.currentNodeId,
-          tab.conversation.revision,
-          JSON.stringify(tab.conversation.depositGraphState ?? {})
-        ].join("|");
-  }
 }

@@ -10,21 +10,13 @@ export class HistoryDeleteService {
     private readonly index: HistoryIndex,
     private readonly closeOpenHistory: (
       conversationId: string
-    ) => Promise<void>,
-    private readonly reportCleanupErrors: (
-      errors: readonly unknown[]
-    ) => void = () => undefined
+    ) => Promise<void>
   ) {}
 
   async delete(entry: HistoryEntry): Promise<HistoryEntry[]> {
     await this.closeOpenHistory(entry.id);
     await this.folders.removeFolder(entry.folder);
     this.index.remove(entry.id);
-    try {
-      await this.index.rebuild();
-    } catch (error) {
-      this.reportCleanupErrors([error]);
-    }
     return this.index.entries();
   }
 }

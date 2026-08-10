@@ -1,4 +1,5 @@
 import { finishAgentRunRecord, type AgentRunRecord } from "../domain/agent-run";
+import { TextDeltaBatcher } from "../execution/text-delta-batcher";
 import type { TabResponseRouter, TabResponseTicket } from "../tabs/tab-response-router";
 
 export interface ActiveResponseHandle {
@@ -12,9 +13,23 @@ export interface ActiveResponseHandle {
   agentRunPublishScheduled?: boolean;
   /** Latest record + timestamp waiting to be published by the scheduler. */
   pendingAgentRun?: { agentRun: AgentRunRecord; now: string };
+  textDeltas: TextDeltaBatcher;
+  pendingTextNow?: string;
 }
 
 export type AgentRunScheduler = (run: () => void) => void;
+export type TextDeltaBatcherFactory = (
+  deliver: (text: string) => void
+) => TextDeltaBatcher;
+
+export interface ActiveResponseTerminalEvent {
+  conversationId: string;
+  status: "complete" | "interrupted" | "failed";
+}
+
+export type ActiveResponseTerminalListener = (
+  event: ActiveResponseTerminalEvent
+) => void;
 
 function defaultAgentRunScheduler(run: () => void): void {
   if (typeof requestAnimationFrame === "function") {
@@ -29,7 +44,10 @@ export class ActiveResponseRequests {
 
   constructor(
     private readonly router: TabResponseRouter,
-    private readonly schedule: AgentRunScheduler = defaultAgentRunScheduler
+    private readonly schedule: AgentRunScheduler = defaultAgentRunScheduler,
+    private readonly createTextBatcher: TextDeltaBatcherFactory = (deliver) =>
+      new TextDeltaBatcher(deliver),
+    private readonly onTerminal?: ActiveResponseTerminalListener
   ) {}
 
   has(conversationId: string): boolean {
@@ -45,16 +63,51 @@ export class ActiveResponseRequests {
     if (this.requests.has(conversationId)) {
       throw new Error("A response is already active for this conversation");
     }
+    const textDeltas = this.createTextBatcher((text) => {
+      const now = handle.pendingTextNow;
+      delete handle.pendingTextNow;
+      if (
+        now === undefined ||
+        handle.finalized ||
+        this.requests.get(handle.conversationId) !== handle
+      ) {
+        return;
+      }
+      this.router.delta(handle.ticket, {
+        conversationId: handle.ticket.conversationId,
+        nodeId: handle.ticket.nodeId,
+        messageId: handle.messageId,
+        delta: text,
+        now
+      });
+    });
     const handle: ActiveResponseHandle = {
       conversationId,
       ticket,
       messageId,
       controller: new AbortController(),
       finalized: false,
+      textDeltas,
       ...(agentRun === undefined ? {} : { agentRun: structuredClone(agentRun) })
     };
     this.requests.set(conversationId, handle);
     return handle;
+  }
+
+  appendText(handle: ActiveResponseHandle, text: string, now: string): void {
+    if (
+      handle.finalized ||
+      this.requests.get(handle.conversationId) !== handle ||
+      text.length === 0
+    ) {
+      return;
+    }
+    handle.pendingTextNow = now;
+    handle.textDeltas.append(text);
+  }
+
+  flushText(handle: ActiveResponseHandle): void {
+    handle.textDeltas.flush();
   }
 
   finish(
@@ -70,6 +123,7 @@ export class ActiveResponseRequests {
     ) {
       return;
     }
+    this.flushText(handle);
     const agentRun =
       handle.agentRun === undefined
         ? undefined
@@ -98,6 +152,7 @@ export class ActiveResponseRequests {
       ...(agentRun === undefined ? {} : { agentRun })
     });
     handle.finalized = true;
+    this.onTerminal?.({ conversationId: handle.conversationId, status });
   }
 
   updateAgentRun(
@@ -157,6 +212,8 @@ export class ActiveResponseRequests {
   }
 
   release(handle: ActiveResponseHandle): void {
+    handle.finalized = true;
+    handle.textDeltas.dispose();
     if (this.requests.get(handle.conversationId) === handle) {
       this.requests.delete(handle.conversationId);
     }

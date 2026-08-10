@@ -54,7 +54,7 @@ export class ProgressiveRunState {
     this.state = input.state;
     this.messages = input.messages;
     this.progressBatches = [structuredClone(input.initialBatch)];
-    this.lastSentMessages = structuredClone(input.messages);
+    this.lastSentMessages = input.messages.slice();
   }
 
   /**
@@ -83,7 +83,7 @@ export class ProgressiveRunState {
     }
     run.state = structuredClone(checkpoint.state);
     run.messages = structuredClone(checkpoint.messages);
-    run.lastSentMessages = structuredClone(run.messages);
+    run.lastSentMessages = run.messages.slice();
     run.turnIndex = Math.min(
       Math.max(0, Math.trunc(checkpoint.turnIndex)),
       Math.max(0, input.maximumModelSubrequests - 1)

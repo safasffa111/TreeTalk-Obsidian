@@ -298,6 +298,10 @@ void test("web page reader rejects local targets and extracts readable text with
 
   assert.throws(() => assertSafeWebUrl("http://127.0.0.1/private"), /不安全/u);
   assert.throws(() => assertSafeWebUrl("https://localhost/private"), /不安全/u);
+  assert.throws(
+    () => assertSafeWebUrl("http://[::ffff:a00:1]/private"),
+    /不安全/u
+  );
   assert.equal(assertSafeWebUrl("https://example.com/article").href, "https://example.com/article");
 
   const extracted = extractReadableWebText({

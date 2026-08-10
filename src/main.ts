@@ -68,6 +68,7 @@ import type { ProviderProfile } from "./providers/types";
 import { TransientUsageStore } from "./providers/transient-usage-store";
 import { TransientResponseStatusStore } from "./providers/transient-response-status-store";
 import { TransientThinkingStore } from "./providers/transient-thinking-store";
+import { runWithRequestDeadline } from "./providers/request-control";
 import { ConversationRepository } from "./storage/conversation-repository";
 import type { ObsidianPrivateStoragePort } from "./storage/obsidian-private-storage-port";
 import { ObsidianNoteLinkResolver } from "./storage/obsidian-note-link-resolver";
@@ -77,6 +78,7 @@ import {
   type ConversationRoots
 } from "./storage/private-paths";
 import { BatchedPersistenceScheduler } from "./storage/persistence-scheduler";
+import { observeActiveTabLeaves } from "./storage/tabs-persistence-observer";
 import { createPrivateStorageRuntime } from "./storage/runtime-private-storage";
 import { SessionPersistence } from "./storage/session-persistence";
 import { ProgressiveRunCheckpointStore } from "./state/progressive-run-checkpoint-store";
@@ -93,6 +95,7 @@ import { TreeTalkSettingTab } from "./settings-tab";
 import { TabLifecycleController } from "./tabs/tab-lifecycle-controller";
 import { TabResponseRouter } from "./tabs/tab-response-router";
 import type { TabResponseTicket } from "./tabs/tab-response-router";
+import { loadStartupConversations } from "./tabs/startup-conversation-loader";
 import type { ConversationTab } from "./tabs/types";
 import {
   openConversationTab,
@@ -101,6 +104,7 @@ import {
 import {
   restoreTabsWorkspace,
   serializeTabsWorkspace,
+  tabsWorkspaceDataEqual,
   type RestoredTabDescriptor
 } from "./tabs/workspace-state";
 import { TreeTalkWorkspaceView } from "./views/obsidian-views";
@@ -174,13 +178,17 @@ export default class TreeTalkPlugin extends Plugin {
     {
       request: async (request, signal) => {
         if (signal.aborted) throw new DOMException("Aborted", "AbortError");
-        const response = await requestUrl({
-          url: request.url,
-          method: request.method,
-          headers: request.headers,
-          body: JSON.stringify(request.body),
-          throw: false
-        });
+        const response = await runWithRequestDeadline(
+          () =>
+            requestUrl({
+              url: request.url,
+              method: request.method,
+              headers: request.headers,
+              body: JSON.stringify(request.body),
+              throw: false
+            }),
+          signal
+        );
         if (signal.aborted) throw new DOMException("Aborted", "AbortError");
         if (response.status >= 400) {
           throw new Error(`HTTP ${String(response.status)}`);
@@ -207,40 +215,52 @@ export default class TreeTalkPlugin extends Plugin {
     resolveAdapter: (profile) => this.providers.get(profile),
     stream: (adapter, request, signal) =>
       this.streamingTransport.stream(adapter, request, signal),
-    bufferedRequest: async (request) => {
-      const response = await requestUrl({
-        url: request.url,
-        method: request.method,
-        headers: request.headers,
-        body: JSON.stringify(request.body),
-        throw: false
-      });
+    bufferedRequest: async (request, signal) => {
+      const response = await runWithRequestDeadline(
+        () =>
+          requestUrl({
+            url: request.url,
+            method: request.method,
+            headers: request.headers,
+            body: JSON.stringify(request.body),
+            throw: false
+          }),
+        signal
+      );
       return { status: response.status, json: response.json };
     }
   });
   private readonly piExecutionEngine = new PiExecutionEngine({
     streamRequest: (profile, request, signal) =>
       this.streamingTransport.stream(this.providers.get(profile), request, signal),
-    bufferedRequest: async (request) => {
-      const response = await requestUrl({
-        url: request.url,
-        method: request.method,
-        headers: request.headers,
-        body: JSON.stringify(request.body),
-        throw: false
-      });
+    bufferedRequest: async (request, signal) => {
+      const response = await runWithRequestDeadline(
+        () =>
+          requestUrl({
+            url: request.url,
+            method: request.method,
+            headers: request.headers,
+            body: JSON.stringify(request.body),
+            throw: false
+          }),
+        signal
+      );
       return { status: response.status, json: response.json };
     },
     webPageRequest: async (url, signal) => {
       if (signal.aborted) throw new DOMException("Aborted", "AbortError");
-      const response = await requestUrl({
-        url,
-        method: "GET",
-        headers: {
-          Accept: "text/html,application/xhtml+xml,text/plain,application/json;q=0.8,*/*;q=0.1"
-        },
-        throw: false
-      });
+      const response = await runWithRequestDeadline(
+        () =>
+          requestUrl({
+            url,
+            method: "GET",
+            headers: {
+              Accept: "text/html,application/xhtml+xml,text/plain,application/json;q=0.8,*/*;q=0.1"
+            },
+            throw: false
+          }),
+        signal
+      );
       if (signal.aborted) throw new DOMException("Aborted", "AbortError");
       const contentType = Object.entries(response.headers).find(
         ([name]) => name.toLowerCase() === "content-type"
@@ -262,7 +282,10 @@ export default class TreeTalkPlugin extends Plugin {
     new TransientResponseStatusStore();
   private readonly transientThinking = new TransientThinkingStore();
   private readonly activeRequests = new ActiveResponseRequests(
-    this.responseRouter
+    this.responseRouter,
+    undefined,
+    undefined,
+    (event) => this.flushConversationPersistence(event.conversationId)
   );
   private readonly progressiveCheckpoints = new ProgressiveRunCheckpointStore();
   /**
@@ -333,12 +356,7 @@ export default class TreeTalkPlugin extends Plugin {
     this.historyDeleteService = new HistoryDeleteService(
       vaultPort,
       this.historyIndex,
-      (conversationId) => this.closeOpenHistory(conversationId),
-      () => {
-        new Notice(
-          "历史对话已永久删除，但打开视图或历史列表刷新未完全完成"
-        );
-      }
+      (conversationId) => this.closeOpenHistory(conversationId)
     );
     const reconciliation = await this.lifecycleQueue.run(() =>
       this.lifecycleReconciler?.reconcile() ??
@@ -359,7 +377,8 @@ export default class TreeTalkPlugin extends Plugin {
       this.persistence,
       this.archiveService,
       this.lifecycleQueue,
-      () => this.saveTabsWorkspace()
+      () => this.saveTabsWorkspace(),
+      this.historyIndex
     );
     this.register(
       installNoteSelectionCapture({
@@ -450,6 +469,14 @@ export default class TreeTalkPlugin extends Plugin {
       this.tabsStore.subscribe(() => {
         this.schedulePersistAll();
         void this.saveTabsWorkspace();
+      })
+    );
+    this.register(
+      observeActiveTabLeaves(this.tabsStore, (tabId) => {
+        const leavingTab = this.tabsStore.getTab(tabId);
+        if (leavingTab !== undefined) {
+          this.flushConversationPersistence(leavingTab.conversationId);
+        }
       })
     );
     await this.saveTabsWorkspace();
@@ -638,33 +665,41 @@ export default class TreeTalkPlugin extends Plugin {
     vaultPort: ObsidianPrivateStoragePort,
     roots: ConversationRoots
   ): Promise<void> {
+    const repository = this.repository;
+    if (repository === undefined) return;
     const available = new Map<string, RestoredTabDescriptor>();
     let latestActive: RestoredTabDescriptor | undefined;
-    for (const root of [roots.active, roots.history]) {
-      const paths = (await vaultPort.list(`${root}/`)).filter((path) =>
-        path.endsWith("/tree.json")
-      );
-      for (const path of paths) {
-        const folder = path.slice(0, -"/tree.json".length);
-        try {
-          const loaded = await this.repository?.load(folder);
-          if (loaded === undefined) continue;
-          const entry = descriptor(folder, loaded.conversation);
-          if (!available.has(entry.conversationId)) {
-            available.set(entry.conversationId, entry);
-          }
-          if (
-            loaded.conversation.status === "active" &&
-            (latestActive === undefined ||
-              loaded.conversation.updatedAt >
-                latestActive.conversation.updatedAt)
-          ) {
-            latestActive = entry;
-          }
-        } catch (error) {
-          logWarning(`读取会话失败: ${folder}`, error);
-          // Corrupt canonical files remain untouched for repository recovery.
-        }
+    let latestActiveUpdatedAt: string | undefined;
+    const [activePaths, historyPaths] = await Promise.all([
+      vaultPort.list(`${roots.active}/`),
+      vaultPort.list(`${roots.history}/`)
+    ]);
+    const folders = [...activePaths, ...historyPaths]
+      .filter((path) => path.endsWith("/tree.json"))
+      .map((path) => path.slice(0, -"/tree.json".length));
+    const loadedConversations = await loadStartupConversations({
+      folders,
+      repository,
+      now: () => new Date().toISOString(),
+      reportLoadError: (folder, error) => {
+        logWarning(`读取会话失败: ${folder}`, error);
+      },
+      reportSaveError: (folder, error) => {
+        logWarning(`保存会话中断恢复状态失败: ${folder}`, error);
+      }
+    });
+    for (const loaded of loadedConversations) {
+      const entry = descriptor(loaded.folder, loaded.conversation);
+      if (!available.has(entry.conversationId)) {
+        available.set(entry.conversationId, entry);
+      }
+      if (
+        loaded.sourceStatus === "active" &&
+        (latestActiveUpdatedAt === undefined ||
+          loaded.sourceUpdatedAt > latestActiveUpdatedAt)
+      ) {
+        latestActive = entry;
+        latestActiveUpdatedAt = loaded.sourceUpdatedAt;
       }
     }
     const restored = await restoreTabsWorkspace(
@@ -1107,13 +1142,11 @@ export default class TreeTalkPlugin extends Plugin {
             if (requestHandle.finalized) return;
             receivedText = true;
             this.transientResponseStatus.delete(messageId);
-            this.responseRouter.delta(ticket, {
-              conversationId: ticket.conversationId,
-              nodeId: ticket.nodeId,
-              messageId,
-              delta: text,
-              now: new Date().toISOString()
-            });
+            this.activeRequests.appendText(
+              requestHandle,
+              text,
+              new Date().toISOString()
+            );
           },
           onThinkingDelta: (text) => {
             if (requestHandle.finalized) return;
@@ -1148,6 +1181,7 @@ export default class TreeTalkPlugin extends Plugin {
           }
         }
       });
+      this.activeRequests.flushText(requestHandle);
       receivedText = result.receivedText;
       runFinalized = true;
       if (requestHandle.finalized) return;
@@ -1349,13 +1383,25 @@ export default class TreeTalkPlugin extends Plugin {
     }
   }
 
+  private flushConversationPersistence(conversationId: string): void {
+    try {
+      this.persistenceScheduler.flush();
+      const tab = Object.values(this.tabsStore.getSnapshot().tabs).find(
+        (entry) => entry.conversationId === conversationId
+      );
+      if (tab === undefined || this.persistence === undefined) return;
+      void this.persistence.flush(tab.folder).catch((error: unknown) => {
+        logWarning(`保存终态对话失败: ${tab.folder}`, error);
+      });
+    } catch (error) {
+      logWarning(`启动终态对话保存失败: ${conversationId}`, error);
+    }
+  }
+
   private async openHistoryManager(): Promise<void> {
     const index = this.historyIndex;
     if (index === undefined) return;
-    await this.lifecycleQueue.run(async () => {
-      await this.lifecycleReconciler?.reconcile();
-      await index.rebuild();
-    });
+    await this.lifecycleQueue.run(() => index.ensureFresh());
     const entries = index.entries();
     if (entries.length === 0) {
       new Notice("还没有历史对话");
@@ -1456,10 +1502,7 @@ export default class TreeTalkPlugin extends Plugin {
   private async openHistorySource(source: TreeTalkSource): Promise<boolean> {
     const index = this.historyIndex;
     if (index === undefined) return false;
-    await this.lifecycleQueue.run(async () => {
-      await this.lifecycleReconciler?.reconcile();
-      await index.rebuild();
-    });
+    await this.lifecycleQueue.run(() => index.ensureFresh());
     const entry = index
       .entries()
       .find((candidate) => candidate.id === source.conversationId);
@@ -1557,9 +1600,13 @@ export default class TreeTalkPlugin extends Plugin {
   }
 
   private saveTabsWorkspace(): Promise<void> {
+    const tabs = serializeTabsWorkspace(this.tabsStore.getSnapshot());
+    if (tabsWorkspaceDataEqual(this.pluginData.tabs, tabs)) {
+      return Promise.resolve();
+    }
     this.pluginData = {
       ...this.pluginData,
-      tabs: serializeTabsWorkspace(this.tabsStore.getSnapshot())
+      tabs
     };
     return this.persistPluginData();
   }

@@ -6,8 +6,38 @@ import { ConversationSessionStore } from "../../src/state/conversation-session-s
 import type { ConversationStorePort } from "../../src/tabs/active-conversation-store";
 import { renderTreePanel } from "../../src/views/tree-view";
 import { validConversation } from "../fixtures";
+import { ActiveConversationStore } from "../../src/tabs/active-conversation-store";
+import { TabResponseRouter } from "../../src/tabs/tab-response-router";
+import { conversationTabsStore } from "../helpers/tab-fixtures";
 
 describe("tree panel", () => {
+  it("keeps the tree DOM intact for a streaming message delta", () => {
+    const tabs = conversationTabsStore("one");
+    const store = new ActiveConversationStore(tabs);
+    const router = new TabResponseRouter(tabs);
+    const ticket = router.capture("one", "child");
+    router.start(ticket, {
+      conversationId: "one",
+      nodeId: "child",
+      messageId: "stream",
+      modelId: "test-model",
+      now: "2026-07-29T12:00:00.000Z"
+    });
+    const container = document.createElement("div");
+    renderTreePanel(container, store);
+    const row = container.querySelector('[data-node-id="child"]');
+
+    router.delta(ticket, {
+      conversationId: "one",
+      nodeId: "child",
+      messageId: "stream",
+      delta: "hello",
+      now: "2026-07-29T12:00:01.000Z"
+    });
+
+    expect(container.querySelector('[data-node-id="child"]')).toBe(row);
+  });
+
   it("renders an empty tree when no conversation tab is open", () => {
     const store: ConversationStorePort = {
       getSnapshot: () => undefined,

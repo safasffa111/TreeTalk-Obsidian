@@ -15,6 +15,14 @@ export function isStrictMessagePrefix(
   current: readonly PiConversationMessage[]
 ): boolean {
   if (current.length < previous.length) return false;
+  let identityPrefix = true;
+  for (let index = 0; index < previous.length; index += 1) {
+    if (previous[index] !== current[index]) {
+      identityPrefix = false;
+      break;
+    }
+  }
+  if (identityPrefix) return true;
   const currentPrefix = current.slice(0, previous.length);
   return JSON.stringify(currentPrefix) === JSON.stringify(previous);
 }

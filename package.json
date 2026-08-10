@@ -1,6 +1,6 @@
 {
   "name": "treetalk",
-  "version": "0.9.4",
+  "version": "0.9.5",
   "description": "Branching AI conversations and deliberate knowledge capture for Obsidian.",
   "type": "module",
   "private": true,
@@ -13,6 +13,7 @@
     "lint": "eslint src tests",
     "test": "vitest",
     "verify": "npm run test -- --run && npm run typecheck && npm run lint && npm run build",
+    "check": "npm run verify && npm run regression",
     "regression": "node --test regression/*.node.test.mjs",
     "benchmark:pi-progressive": "node scripts/summarize-pi-progressive-benchmark.mjs"
   },

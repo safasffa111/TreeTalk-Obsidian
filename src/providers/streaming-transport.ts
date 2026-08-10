@@ -3,6 +3,11 @@ import type {
   ProviderEvent,
   ProviderRequest
 } from "./types";
+import {
+  createRequestDeadline,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  RequestTimeoutError
+} from "./request-control";
 
 export interface StreamingFetchResponse {
   ok: boolean;
@@ -39,7 +44,8 @@ export function assertStreamCompleted(
 export class StreamingProviderTransport {
   constructor(
     private readonly fetcher: StreamingFetch = (url, init) =>
-      fetch(url, init)
+      fetch(url, init),
+    private readonly timeoutMilliseconds = DEFAULT_REQUEST_TIMEOUT_MS
   ) {}
 
   async *stream(
@@ -47,32 +53,43 @@ export class StreamingProviderTransport {
     request: ProviderRequest,
     signal: AbortSignal
   ): AsyncGenerator<ProviderEvent> {
-    const response = await this.fetcher(request.url, {
-      method: request.method,
-      headers: request.headers,
-      body: JSON.stringify(request.body),
-      signal
-    });
-    if (!response.ok) throw new Error(`HTTP ${String(response.status)}`);
-    if (response.body === null) throw new StreamingUnavailableError();
-
-    const parser = adapter.createStreamParser(request);
-    const decoder = new TextDecoder();
-    const reader = response.body.getReader();
+    const deadline = createRequestDeadline(signal, this.timeoutMilliseconds);
     try {
-      let chunk = await reader.read();
-      while (!chunk.done) {
-        const text = decoder.decode(chunk.value, { stream: true });
-        for (const event of parser.push(text)) yield event;
-        chunk = await reader.read();
+      const response = await deadline.wait(
+        this.fetcher(request.url, {
+          method: request.method,
+          headers: request.headers,
+          body: JSON.stringify(request.body),
+          signal: deadline.signal
+        })
+      );
+      if (!response.ok) throw new Error(`HTTP ${String(response.status)}`);
+      if (response.body === null) throw new StreamingUnavailableError();
+
+      const parser = adapter.createStreamParser(request);
+      const decoder = new TextDecoder();
+      const reader = response.body.getReader();
+      try {
+        let chunk = await deadline.wait(reader.read());
+        while (!chunk.done) {
+          const text = decoder.decode(chunk.value, { stream: true });
+          for (const event of parser.push(text)) yield event;
+          chunk = await deadline.wait(reader.read());
+        }
+        const tail = decoder.decode();
+        if (tail.length > 0) {
+          for (const event of parser.push(tail)) yield event;
+        }
+        for (const event of parser.finish()) yield event;
+      } finally {
+        reader.releaseLock();
       }
-      const tail = decoder.decode();
-      if (tail.length > 0) {
-        for (const event of parser.push(tail)) yield event;
-      }
-      for (const event of parser.finish()) yield event;
+    } catch (error) {
+      if (deadline.timedOut) throw new RequestTimeoutError();
+      if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+      throw error;
     } finally {
-      reader.releaseLock();
+      deadline.dispose();
     }
   }
 }

@@ -74,6 +74,21 @@ export function serializeTabsWorkspace(
   };
 }
 
+export function tabsWorkspaceDataEqual(
+  left: TabsWorkspaceData,
+  right: TabsWorkspaceData
+): boolean {
+  return (
+    left.schemaVersion === right.schemaVersion &&
+    left.activeConversationId === right.activeConversationId &&
+    left.openConversationIds.length === right.openConversationIds.length &&
+    left.openConversationIds.every(
+      (conversationId, index) =>
+        conversationId === right.openConversationIds[index]
+    )
+  );
+}
+
 export async function restoreTabsWorkspace(
   data: TabsWorkspaceData,
   load: WorkspaceTabLoader

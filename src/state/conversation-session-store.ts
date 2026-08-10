@@ -1,7 +1,11 @@
 import { parseConversation } from "../domain/schema";
 import type { ConversationFile } from "../domain/types";
+import type {
+  ConversationStoreChange,
+  ConversationStoreListener
+} from "../tabs/active-conversation-store";
 
-export type ConversationListener = () => void;
+export type ConversationListener = ConversationStoreListener;
 export type ConversationUpdater = (conversation: ConversationFile) => ConversationFile;
 
 export class ConversationSessionStore {
@@ -25,7 +29,8 @@ export class ConversationSessionStore {
     const next = parseConversation(updater(this.conversation));
     if (next === this.conversation) return;
     this.conversation = next;
-    for (const listener of this.listeners) listener();
+    const change: ConversationStoreChange = { kind: "full" };
+    for (const listener of this.listeners) listener(change);
   }
 
   replace(conversation: ConversationFile): void {

@@ -21,10 +21,12 @@ jobs:
           node-version: "22"
           cache: npm
 
-      - name: Build
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify release
         run: |
-          npm ci
-          npm run build
+          npm run check
 
       - name: Create release
         env:

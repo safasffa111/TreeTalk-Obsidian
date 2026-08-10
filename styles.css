@@ -1088,6 +1088,11 @@ mark.treetalk-source-range-flash {
   overflow-wrap: anywhere;
 }
 
+.treetalk-streaming-live-tail {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .treetalk-agent-execution {
   margin: 8px 0 0;
   border-top: 1px solid var(--background-modifier-border);

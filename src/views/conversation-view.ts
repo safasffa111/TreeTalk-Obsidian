@@ -31,7 +31,10 @@ import type {
   TransientResponseStatusPort
 } from "../providers/transient-response-status-store";
 import type { TransientThinkingPort } from "../providers/transient-thinking-store";
-import type { ConversationStorePort } from "../tabs/active-conversation-store";
+import type {
+  ConversationStoreChange,
+  ConversationStorePort
+} from "../tabs/active-conversation-store";
 import {
   writeExcerptDragData,
   type TreeTalkExcerptDragPayload
@@ -43,6 +46,7 @@ import {
   type MessageRendererFactory,
   type MessageRendererPort
 } from "./message-renderer";
+import { nativeMarkdownRenderIntervalMs } from "./native-render-cadence";
 import {
   canonicalRenderedText,
   installSourceAwareTraceRanges,
@@ -50,6 +54,7 @@ import {
   selectionForDomRange
 } from "./rendered-selection";
 import { logWarning } from "../utils/error-log";
+import { rememberBounded } from "../utils/bounded-set";
 
 // Render failures fall back to plain text; warn once per message so a
 // persistent parser error is visible without spamming the console.
@@ -117,34 +122,42 @@ function findMessage(
   throw new Error(`Message not found: ${messageId}`);
 }
 
-export function selectionTracesForMessage(
-  conversation: ConversationFile,
-  messageId: string
-): SelectionTrace[] {
-  const traces: SelectionTrace[] = [];
-  const seen = new Set<string>();
+export function buildSelectionTraceIndex(
+  conversation: ConversationFile
+): Map<string, SelectionTrace[]> {
+  const tracesByMessage = new Map<string, SelectionTrace[]>();
+  const seenByMessage = new Map<string, Set<string>>();
   for (const node of Object.values(conversation.nodes)) {
     for (const userMessage of node.messages) {
       if (userMessage.role !== "user") continue;
       for (const context of userMessage.selectionContexts ?? []) {
-        if (
-          !isMessageSelectionContext(context) ||
-          context.messageId !== messageId
-        ) {
-          continue;
-        }
+        if (!isMessageSelectionContext(context)) continue;
         const key = `${node.id}:${selectionContextKey(context)}`;
+        const seen = seenByMessage.get(context.messageId) ?? new Set<string>();
         if (seen.has(key)) continue;
         seen.add(key);
+        seenByMessage.set(context.messageId, seen);
+        const traces = tracesByMessage.get(context.messageId) ?? [];
         traces.push({ anchor: context, targetNodeId: node.id });
+        tracesByMessage.set(context.messageId, traces);
       }
     }
   }
-  return traces.sort(
-    (left, right) =>
-      right.anchor.startOffset - left.anchor.startOffset ||
-      right.anchor.endOffset - left.anchor.endOffset
-  );
+  for (const traces of tracesByMessage.values()) {
+    traces.sort(
+      (left, right) =>
+        right.anchor.startOffset - left.anchor.startOffset ||
+        right.anchor.endOffset - left.anchor.endOffset
+    );
+  }
+  return tracesByMessage;
+}
+
+export function selectionTracesForMessage(
+  conversation: ConversationFile,
+  messageId: string
+): SelectionTrace[] {
+  return buildSelectionTraceIndex(conversation).get(messageId) ?? [];
 }
 
 export async function attachSelectionContext(
@@ -428,6 +441,9 @@ interface MessageViewState {
   content: HTMLElement;
   renderer: MessageRendererPort;
   renderVersion: number;
+  rendering: boolean;
+  lastNativeRenderStartedAt?: number;
+  scheduledRenderAt?: number;
   cleanups: Array<() => void>;
   cancelScheduled?: () => void;
   pending?: {
@@ -441,14 +457,20 @@ interface MessageViewState {
   renderedContent?: string;
   renderedTraceKey?: string;
   renderedStatus?: ChatMessage["status"];
+  liveTail?: HTMLElement;
   captureButton?: HTMLButtonElement;
   retryButton?: HTMLButtonElement;
   tokenStats?: HTMLDetailsElement;
+  tokenStatsKey?: string;
   agentExecution?: HTMLDetailsElement;
+  agentExecutionKey?: string;
   responseProgress?: HTMLElement;
   thinkingPanel?: HTMLDetailsElement;
   thinkingContent?: HTMLElement;
   renderedThinkingLength?: number;
+  nodeId?: string;
+  traceKey?: string;
+  traces?: SelectionTrace[];
 }
 
 interface ComposerElements {
@@ -462,6 +484,20 @@ interface ComposerElements {
   answerThinking: HTMLButtonElement;
   webSearch: HTMLButtonElement;
   send: HTMLButtonElement;
+}
+
+function nextNativeRenderAt(
+  view: MessageViewState,
+  message: ChatMessage,
+  now: number
+): number {
+  if (message.status !== "streaming") return now;
+  const lastStartedAt = view.lastNativeRenderStartedAt;
+  if (lastStartedAt === undefined) return now;
+  return Math.max(
+    now,
+    lastStartedAt + nativeMarkdownRenderIntervalMs(message.content.length)
+  );
 }
 
 const NATIVE_CONTEXT_MENU_SELECTOR = [
@@ -529,6 +565,22 @@ function scheduleAnimationFrame(
   return () => clearTimeout(timer);
 }
 
+function scheduleAnimationFrameAfter(
+  document: Document,
+  delayMs: number,
+  callback: () => void
+): () => void {
+  if (delayMs <= 0) return scheduleAnimationFrame(document, callback);
+  let cancelFrame: (() => void) | undefined;
+  const timer = setTimeout(() => {
+    cancelFrame = scheduleAnimationFrame(document, callback);
+  }, delayMs);
+  return () => {
+    clearTimeout(timer);
+    cancelFrame?.();
+  };
+}
+
 function messageTraceKey(traces: SelectionTrace[]): string {
   return traces
     .map(
@@ -536,6 +588,24 @@ function messageTraceKey(traces: SelectionTrace[]): string {
         `${trace.targetNodeId}:${selectionContextKey(trace.anchor)}`
     )
     .join("|");
+}
+
+function agentExecutionRenderKey(message: ChatMessage): string | undefined {
+  if (message.role !== "assistant" || message.agentRun === undefined) {
+    return undefined;
+  }
+  const model = agentExecutionViewModel(message.agentRun);
+  return JSON.stringify([model.title, model.rows]);
+}
+
+function tokenStatsRenderKey(
+  record: TokenStatsRecord | undefined,
+  message: ChatMessage
+): string | undefined {
+  if (message.role !== "assistant" || message.status !== "complete") {
+    return undefined;
+  }
+  return JSON.stringify([record, message.referencedNoteNames ?? []]);
 }
 
 function isNearBottom(element: HTMLElement): boolean {
@@ -816,6 +886,11 @@ export function renderConversationPanel(
   const disposeMessageView = (view: MessageViewState): void => {
     view.renderVersion += 1;
     view.cancelScheduled?.();
+    delete view.cancelScheduled;
+    delete view.scheduledRenderAt;
+    delete view.pending;
+    view.liveTail?.remove();
+    delete view.liveTail;
     for (const cleanup of view.cleanups) cleanup();
     view.renderer.dispose();
     view.article.remove();
@@ -1046,9 +1121,17 @@ export function renderConversationPanel(
     view: MessageViewState,
     message: ChatMessage
   ): void => {
-    if (message.role !== "assistant" || message.agentRun === undefined) {
+    const nextKey = agentExecutionRenderKey(message);
+    if (nextKey === undefined || message.agentRun === undefined) {
       view.agentExecution?.remove();
       delete view.agentExecution;
+      delete view.agentExecutionKey;
+      return;
+    }
+    if (
+      nextKey === view.agentExecutionKey &&
+      view.agentExecution?.parentElement === view.article
+    ) {
       return;
     }
     const open = view.agentExecution?.open ?? false;
@@ -1073,6 +1156,7 @@ export function renderConversationPanel(
     details.append(summary, rows);
     details.open = open;
     view.agentExecution = details;
+    view.agentExecutionKey = nextKey;
     view.article.append(details);
   };
 
@@ -1081,15 +1165,21 @@ export function renderConversationPanel(
     message: ChatMessage
   ): void => {
     const record = options?.transientUsage?.get(message.id);
-    const shouldShow =
-      message.role === "assistant" && message.status === "complete";
-    if (!shouldShow) {
-      view.tokenStats?.remove();
-      delete view.tokenStats;
-      return;
-    }
     const displayRecord =
       record !== undefined && shouldDisplayTokenStats(record) ? record : undefined;
+    const nextKey = tokenStatsRenderKey(displayRecord, message);
+    if (nextKey === undefined) {
+      view.tokenStats?.remove();
+      delete view.tokenStats;
+      delete view.tokenStatsKey;
+      return;
+    }
+    if (
+      nextKey === view.tokenStatsKey &&
+      view.tokenStats?.parentElement === view.article
+    ) {
+      return;
+    }
     const open = view.tokenStats?.open ?? false;
     view.tokenStats?.remove();
     view.tokenStats = createTokenStatsDetails(
@@ -1098,8 +1188,50 @@ export function renderConversationPanel(
       message
     );
     view.tokenStats.open = open;
+    view.tokenStatsKey = nextKey;
     view.article.append(view.tokenStats);
   };
+
+  const syncLiveTail = (
+    view: MessageViewState,
+    message: ChatMessage
+  ): void => {
+    const committed = view.renderedContent ?? "";
+    const suffix =
+      message.status === "streaming" && message.content.startsWith(committed)
+        ? message.content.slice(committed.length)
+        : "";
+    if (suffix.length === 0) {
+      view.liveTail?.remove();
+      delete view.liveTail;
+      return;
+    }
+    const tail =
+      view.liveTail ?? container.ownerDocument.createElement("span");
+    tail.className = "treetalk-streaming-live-tail";
+    tail.textContent = suffix;
+    if (tail.parentElement !== view.content) view.content.append(tail);
+    view.liveTail = tail;
+  };
+
+  const sameRenderRequest = (
+    left: NonNullable<MessageViewState["pending"]>,
+    right: NonNullable<MessageViewState["pending"]>
+  ): boolean =>
+    left.message.content === right.message.content &&
+    left.message.status === right.message.status &&
+    left.traceKey === right.traceKey &&
+    left.nodeId === right.nodeId;
+
+  const canCommitStreamingPrefix = (
+    rendered: NonNullable<MessageViewState["pending"]>,
+    latest: NonNullable<MessageViewState["pending"]>
+  ): boolean =>
+    rendered.message.status === "streaming" &&
+    latest.message.status === "streaming" &&
+    latest.message.content.startsWith(rendered.message.content) &&
+    latest.traceKey === rendered.traceKey &&
+    latest.nodeId === rendered.nodeId;
 
   const performMessageRender = async (
     view: MessageViewState,
@@ -1118,10 +1250,10 @@ export function renderConversationPanel(
     renderedMount.className = "treetalk-streaming-rendered";
     if (split.stableMarkdown.length > 0) {
       try {
+        view.lastNativeRenderStartedAt = Date.now();
         await view.renderer.render(split.stableMarkdown, renderedMount);
       } catch (error) {
-        if (!renderWarnedMessages.has(pending.message.id)) {
-          renderWarnedMessages.add(pending.message.id);
+        if (rememberBounded(renderWarnedMessages, pending.message.id, 256)) {
           logWarning(`流式 Markdown 渲染失败: ${pending.message.id}`, error);
         }
         renderedMount.textContent = split.stableMarkdown;
@@ -1141,40 +1273,74 @@ export function renderConversationPanel(
       pending.traces,
       (nodeId) => store.selectNode(nodeId)
     );
+    if (disposed || version !== view.renderVersion) {
+      return;
+    }
+    const registeredView = messageViews.get(pending.message.id);
+    if (registeredView !== view) return;
+    const latest = view.pending;
+    const matchesLatest =
+      latest !== undefined && sameRenderRequest(pending, latest);
     if (
-      disposed ||
-      version !== view.renderVersion ||
-      !messageViews.has(pending.message.id)
+      latest !== undefined &&
+      !matchesLatest &&
+      !canCommitStreamingPrefix(pending, latest)
     ) {
       return;
     }
+    if (matchesLatest) delete view.pending;
     view.content.replaceChildren(...staging.childNodes);
     view.content.classList.add("is-rendered");
     view.renderedContent = pending.message.content;
     view.renderedTraceKey = pending.traceKey;
     view.renderedStatus = pending.message.status;
+    syncLiveTail(view, view.pending?.message ?? pending.message);
     if (followBottom && messagesMount !== undefined) {
       messagesMount.scrollTop = messagesMount.scrollHeight;
     }
+  };
+
+  const requestPendingRender = (view: MessageViewState): void => {
+    if (view.rendering || view.pending === undefined) return;
+    const now = Date.now();
+    const dueAt = nextNativeRenderAt(view, view.pending.message, now);
+    if (view.cancelScheduled !== undefined) {
+      const alreadyImmediate =
+        dueAt === now && (view.scheduledRenderAt ?? now) <= now;
+      if (alreadyImmediate || view.scheduledRenderAt === dueAt) return;
+      view.cancelScheduled();
+      delete view.cancelScheduled;
+      delete view.scheduledRenderAt;
+    }
+    view.scheduledRenderAt = dueAt;
+    view.cancelScheduled = scheduleAnimationFrameAfter(
+      container.ownerDocument,
+      Math.max(0, dueAt - now),
+      () => {
+        delete view.cancelScheduled;
+        delete view.scheduledRenderAt;
+        const latest = view.pending;
+        if (latest === undefined || view.rendering) return;
+        delete view.pending;
+        view.rendering = true;
+        const version = view.renderVersion;
+        void performMessageRender(view, version, latest).finally(() => {
+          view.rendering = false;
+          if (!disposed && version === view.renderVersion) {
+            requestPendingRender(view);
+          }
+        });
+      }
+    );
   };
 
   const scheduleMessageRender = (
     view: MessageViewState,
     pending: NonNullable<MessageViewState["pending"]>
   ): void => {
-    view.renderVersion += 1;
     view.pending = pending;
-    if (view.cancelScheduled !== undefined) return;
-    view.cancelScheduled = scheduleAnimationFrame(
-      container.ownerDocument,
-      () => {
-        delete view.cancelScheduled;
-        const latest = view.pending;
-        if (latest === undefined) return;
-        const version = view.renderVersion;
-        void performMessageRender(view, version, latest);
-      }
-    );
+    syncLiveTail(view, pending.message);
+    requestPendingRender(view);
   };
 
   const createMessageView = (
@@ -1224,6 +1390,7 @@ export function renderConversationPanel(
       content,
       renderer: rendererFactory.create(),
       renderVersion: 0,
+      rendering: false,
       cleanups
     };
   };
@@ -1242,6 +1409,7 @@ export function renderConversationPanel(
       }
     }
 
+    const traceIndex = buildSelectionTraceIndex(conversation);
     for (const message of node.messages) {
       let view = messageViews.get(message.id);
       if (view === undefined) {
@@ -1259,8 +1427,11 @@ export function renderConversationPanel(
       syncThinking(view, message);
       syncAgentExecution(view, message);
       syncTokenStats(view, message);
-      const traces = selectionTracesForMessage(conversation, message.id);
+      const traces = traceIndex.get(message.id) ?? [];
       const traceKey = messageTraceKey(traces);
+      view.nodeId = node.id;
+      view.traces = traces;
+      view.traceKey = traceKey;
       if (
         view.renderedContent !== message.content ||
         view.renderedTraceKey !== traceKey ||
@@ -1275,6 +1446,54 @@ export function renderConversationPanel(
           traces
         });
       }
+    }
+  };
+
+  const syncMessageDelta = (
+    change: Extract<ConversationStoreChange, { kind: "message-delta" }>
+  ): void => {
+    const conversation = store.getSnapshot();
+    if (conversation === undefined) {
+      sync();
+      return;
+    }
+    if (conversation.currentNodeId !== change.nodeId) return;
+    const node = conversation.nodes[change.nodeId];
+    const message = node?.messages.find(
+      (candidate) => candidate.id === change.messageId
+    );
+    const view = messageViews.get(change.messageId);
+    if (
+      node === undefined ||
+      message === undefined ||
+      view === undefined ||
+      view.nodeId !== node.id ||
+      view.traces === undefined ||
+      view.traceKey === undefined
+    ) {
+      sync();
+      return;
+    }
+    const mode = store.getMode?.() ?? conversation.status;
+    const mutable =
+      mode === "active" &&
+      conversation.status === "active" &&
+      (store.canMutate?.() ?? true);
+    view.article.className =
+      `treetalk-message is-${message.role} is-${message.status}`;
+    if (
+      view.renderedContent !== message.content ||
+      view.renderedTraceKey !== view.traceKey ||
+      view.renderedStatus !== message.status
+    ) {
+      scheduleMessageRender(view, {
+        message,
+        conversation,
+        nodeId: node.id,
+        mutable,
+        traceKey: view.traceKey,
+        traces: view.traces
+      });
     }
   };
 
@@ -1526,8 +1745,13 @@ export function renderConversationPanel(
     if (mutable) syncComposer(conversation);
   };
 
-  const unsubscribe = store.subscribe(() => {
-    if (!suppressSync) sync();
+  const unsubscribe = store.subscribe((change) => {
+    if (suppressSync) return;
+    if (change?.kind === "message-delta") {
+      syncMessageDelta(change);
+      return;
+    }
+    sync();
   });
   const unsubscribeHighlights = highlights?.subscribe((source) => {
     clearSourceHighlight();

@@ -1,8 +1,39 @@
 import { describe, expect, it, vi } from "vitest";
 import { ActiveConversationStore } from "../../src/tabs/active-conversation-store";
+import { TabResponseRouter } from "../../src/tabs/tab-response-router";
 import { conversationTabsStore } from "../helpers/tab-fixtures";
 
 describe("ActiveConversationStore", () => {
+  it("forwards an active streaming delta as a targeted change", () => {
+    const tabsStore = conversationTabsStore("one");
+    const active = new ActiveConversationStore(tabsStore);
+    const router = new TabResponseRouter(tabsStore);
+    const ticket = router.capture("one", "child");
+    router.start(ticket, {
+      conversationId: "one",
+      nodeId: "child",
+      messageId: "stream",
+      modelId: "test-model",
+      now: "2026-07-29T12:00:00.000Z"
+    });
+    const listener = vi.fn();
+    active.subscribe(listener);
+
+    router.delta(ticket, {
+      conversationId: "one",
+      nodeId: "child",
+      messageId: "stream",
+      delta: "hello",
+      now: "2026-07-29T12:00:01.000Z"
+    });
+
+    expect(listener).toHaveBeenCalledExactlyOnceWith({
+      kind: "message-delta",
+      nodeId: "child",
+      messageId: "stream"
+    });
+  });
+
   it("exposes the selected conversation and follows tab switches", () => {
     const tabsStore = conversationTabsStore("one", "two");
     const active = new ActiveConversationStore(tabsStore);

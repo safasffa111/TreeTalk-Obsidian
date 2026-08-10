@@ -1,9 +1,9 @@
 # TreeTalk for Obsidian
 
 
-TreeTalk 把 AI 对话组织成树形结构：每条追问都可以继续或分支，框选笔记与对话内容作为上下文，回答与依据可沉淀回纯 Markdown。插件基于 DeepSeek，在 Obsidian 内直接提问，支持按需取证、流式输出、失败续跑与长回答续写。
+TreeTalk 是一款可追溯、可分叉、可沉淀的 Obsidian AI 研究工具。每条追问都可以继续或创建独立分支，笔记与对话中的精确选段会成为带来源的上下文，研究结果最终可沉淀为普通 Markdown 与 WikiLink 知识树。插件基于 DeepSeek，支持按需取证、稳定流式输出、失败续跑与长回答续写。
 
-> 当前为 0.9.0 首发版（beta 质量阶段）。
+> 当前版本：0.9.5（桌面版）。
 
 ## 特性
 
@@ -16,17 +16,22 @@ TreeTalk 把 AI 对话组织成树形结构：每条追问都可以继续或分�
 - 摘录回链：框选内容可拖入笔记，生成带来源链接的引用块。
 - 联网模式：DeepSeek 按需搜索网页（可在设置中关闭）。
 
+## 0.9.5 重点更新
+
+- 流式定向更新：只刷新正在变化的回答、思考与状态区域，减少整棵对话树重复渲染。
+- 自适应 Markdown 渲染：根据输出速度调整渲染节奏，在保持实时感的同时降低长回答卡顿。
+- 增量历史索引：复用已加载的历史元数据，只处理新增、恢复或删除的对话。
+- 启动受控并发：恢复多个已打开对话时最多并发读取 4 个，保持原标签顺序，单个对话失败不会阻断其他对话。
+
 ## 安装
 
-社区目录安装：设置 → 第三方插件 → 浏览 → 搜索 TreeTalk → 安装并启用。
-
-手动安装：将 `main.js`、`manifest.json`、`styles.css`、`versions.json` 复制到：
+从 GitHub Release 下载 `TreeTalk-Obsidian-0.9.5-installer.zip`，解压到：
 
 ```text
 <你的 Vault>/.obsidian/plugins/treetalk/
 ```
 
-重新加载 Obsidian，在“设置 → 第三方插件”启用 TreeTalk，然后在“设置 → TreeTalk”填写模型、API 地址和 API Key（API Key 使用 Obsidian SecretStorage 保存，不写入普通笔记）。
+目录内应包含 `main.js`、`manifest.json` 和 `styles.css`。重新加载 Obsidian，在“设置 → 第三方插件”启用 TreeTalk，然后在“设置 → TreeTalk”填写 API 地址和 API Key（API Key 使用 Obsidian SecretStorage 保存，不写入普通笔记）。
 
 ## 快速开始
 
@@ -144,9 +149,9 @@ TreeTalk 不会覆盖 Obsidian 全局的 `Ctrl+W`。
 
 ## English
 
-TreeTalk organizes AI conversations into a tree: every follow-up can continue or branch, selections from notes and conversations become context, and answers can be captured back into plain Markdown. It runs inside Obsidian and is powered by DeepSeek, with on-demand evidence retrieval, streaming output, and failure recovery.
+TreeTalk is a traceable, branching AI research tool for Obsidian. Every follow-up can continue the current path or create an independent branch; exact selections from notes and conversations become source-linked context, and the resulting research can be deposited as ordinary Markdown and WikiLink knowledge trees. It is powered by DeepSeek, with on-demand evidence retrieval, stable streaming, failure recovery, and long-answer continuation.
 
-> Current version: 0.9.2 (beta quality).
+> Current version: 0.9.5 (desktop only).
 
 ## Features
 
@@ -160,17 +165,22 @@ TreeTalk organizes AI conversations into a tree: every follow-up can continue or
 - Relationship graph: visualize deposited conversation trees and notes, with focus and dimming controls.
 - Web search: DeepSeek can search the web on demand (toggle in settings).
 
+## What's new in 0.9.5
+
+- Targeted streaming updates refresh only the answer, thinking, and status regions that are changing instead of repeatedly rendering the whole conversation tree.
+- Adaptive Markdown rendering adjusts cadence to output speed, preserving responsiveness while reducing long-answer rendering work.
+- Incremental history indexing reuses loaded metadata and updates only conversations that are added, restored, or deleted.
+- Ordered startup loading reads at most four open conversations concurrently, preserves tab order, and isolates individual load failures.
+
 ## Installation
 
-From the community directory: Settings → Community plugins → Browse → search "TreeTalk" → Install and enable.
-
-Manual install: copy `main.js`, `manifest.json`, `styles.css`, and `versions.json` into:
+Download `TreeTalk-Obsidian-0.9.5-installer.zip` from the GitHub Release and extract it into:
 
 ```text
 <Your Vault>/.obsidian/plugins/treetalk/
 ```
 
-Reload Obsidian, enable TreeTalk under Community plugins, then open Settings → TreeTalk to configure the model, API endpoint, and API key. The API key is stored in Obsidian's SecretStorage and is never written into notes.
+The directory must contain `main.js`, `manifest.json`, and `styles.css`. Reload Obsidian, enable TreeTalk under Community plugins, then open Settings → TreeTalk to configure the API endpoint and API key. The API key is stored in Obsidian's SecretStorage and is never written into notes.
 
 ## Quick start
 

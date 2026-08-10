@@ -28,7 +28,10 @@ export interface LegacyExecutionEngineDependencies {
     request: ProviderRequest,
     signal: AbortSignal
   ): AsyncIterable<ProviderEvent>;
-  bufferedRequest(request: ProviderRequest): Promise<BufferedProviderResponse>;
+  bufferedRequest(
+    request: ProviderRequest,
+    signal: AbortSignal
+  ): Promise<BufferedProviderResponse>;
   canUseBufferedFallback?(error: unknown): boolean;
   now?(): string;
 }
@@ -264,7 +267,8 @@ export class LegacyExecutionEngine implements ExecutionEngine {
             request.route.providerProfile
           );
           const response = await this.dependencies.bufferedRequest(
-            bufferedProviderRequest
+            bufferedProviderRequest,
+            signal
           );
           if (response.status >= 400) {
             throw new Error(`HTTP ${String(response.status)}`);
@@ -315,7 +319,8 @@ export class LegacyExecutionEngine implements ExecutionEngine {
             request.route.providerProfile
           );
           const response = await this.dependencies.bufferedRequest(
-            fallbackRequest
+            fallbackRequest,
+            signal
           );
           if (response.status >= 400) {
             throw new Error(`HTTP ${String(response.status)}`);
@@ -354,7 +359,8 @@ export class LegacyExecutionEngine implements ExecutionEngine {
             request.route.providerProfile
           );
           const response = await this.dependencies.bufferedRequest(
-            retryWithoutThinking
+            retryWithoutThinking,
+            signal
           );
           if (response.status >= 400) {
             throw new Error(`HTTP ${String(response.status)}`);

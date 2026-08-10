@@ -1195,6 +1195,18 @@ function deepFreeze<T>(value: T): T {
   return Object.freeze(value);
 }
 
+const parsedConversations = new WeakSet();
+
+export function isParsedConversation(
+  value: unknown
+): value is ConversationFile {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    parsedConversations.has(value)
+  );
+}
+
 export function parseConversation(value: unknown): ConversationFile {
   const source = record(value, "conversation");
   if (source.schemaVersion !== 1) {
@@ -1259,5 +1271,7 @@ export function parseConversation(value: unknown): ConversationFile {
   if (issues.length > 0) {
     throw new TypeError(issues.map((issue) => `${issue.code}: ${issue.message}`).join("; "));
   }
-  return deepFreeze(conversation);
+  const parsed = deepFreeze(conversation);
+  parsedConversations.add(parsed);
+  return parsed;
 }

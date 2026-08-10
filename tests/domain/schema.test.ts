@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parseConversation } from "../../src/domain/schema";
+import {
+  isParsedConversation,
+  parseConversation
+} from "../../src/domain/schema";
 import { requireNode, validConversation } from "../fixtures";
 
 describe("parseConversation", () => {
@@ -39,6 +42,15 @@ describe("parseConversation", () => {
 
     expect(Object.isFrozen(parsed)).toBe(true);
     expect(Object.isFrozen(parsed.nodes.root)).toBe(true);
+  });
+
+  it("recognizes only objects returned by the parser", () => {
+    const source = validConversation();
+    const parsed = parseConversation(source);
+
+    expect(isParsedConversation(source)).toBe(false);
+    expect(isParsedConversation(parsed)).toBe(true);
+    expect(isParsedConversation(structuredClone(parsed))).toBe(false);
   });
 
   it("normalizes legacy singular selection contexts into frozen arrays", () => {

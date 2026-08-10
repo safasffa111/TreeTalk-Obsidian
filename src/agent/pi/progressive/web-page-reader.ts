@@ -54,8 +54,27 @@ function isBlockedIpv4(parts: number[]): boolean {
   );
 }
 
+function mappedIpv4(hostname: string): number[] | undefined {
+  const normalized = hostname.replace(/^\[|\]$/gu, "").toLowerCase();
+  if (!normalized.startsWith("::ffff:")) return undefined;
+  const suffix = normalized.slice("::ffff:".length);
+  const dotted = parseIpv4(suffix);
+  if (dotted !== undefined) return dotted;
+  const parts = suffix.split(":");
+  if (
+    parts.length !== 2 ||
+    parts.some((part) => !/^[0-9a-f]{1,4}$/u.test(part))
+  ) {
+    return undefined;
+  }
+  const high = Number.parseInt(parts[0] ?? "", 16);
+  const low = Number.parseInt(parts[1] ?? "", 16);
+  return [high >>> 8, high & 0xff, low >>> 8, low & 0xff];
+}
+
 function isBlockedIpv6(hostname: string): boolean {
   const normalized = hostname.replace(/^\[|\]$/gu, "").toLowerCase();
+  const mapped = mappedIpv4(normalized);
   return (
     normalized === "::" ||
     normalized === "::1" ||
@@ -64,7 +83,8 @@ function isBlockedIpv6(hostname: string): boolean {
     /^fe[89ab]/u.test(normalized) ||
     normalized.startsWith("::ffff:127.") ||
     normalized.startsWith("::ffff:10.") ||
-    normalized.startsWith("::ffff:192.168.")
+    normalized.startsWith("::ffff:192.168.") ||
+    (mapped !== undefined && isBlockedIpv4(mapped))
   );
 }
 

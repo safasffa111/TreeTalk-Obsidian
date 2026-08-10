@@ -3,7 +3,7 @@ export class BatchedPersistenceScheduler {
 
   constructor(
     private readonly persist: () => void,
-    private readonly delayMilliseconds = 100
+    private readonly delayMilliseconds = 1000
   ) {}
 
   schedule(): void {

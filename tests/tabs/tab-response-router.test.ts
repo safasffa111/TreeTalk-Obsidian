@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { AssistantResponseInput } from "../../src/domain/assistant-response";
 import { TabResponseRouter } from "../../src/tabs/tab-response-router";
 import { conversationTabsStore } from "../helpers/tab-fixtures";
@@ -15,6 +15,39 @@ function answer(content: string): AssistantResponseInput {
 }
 
 describe("TabResponseRouter", () => {
+  it("publishes a narrow change hint only for streaming text deltas", () => {
+    const tabsStore = conversationTabsStore("one");
+    const router = new TabResponseRouter(tabsStore);
+    const listener = vi.fn();
+    tabsStore.subscribe(listener);
+    const ticket = router.capture("one", "child");
+
+    router.start(ticket, {
+      conversationId: "one",
+      nodeId: "child",
+      messageId: "stream",
+      modelId: "test-model",
+      now: "2026-07-29T12:00:00.000Z"
+    });
+    expect(listener).toHaveBeenLastCalledWith({ kind: "full" });
+    listener.mockClear();
+
+    router.delta(ticket, {
+      conversationId: "one",
+      nodeId: "child",
+      messageId: "stream",
+      delta: "hello",
+      now: "2026-07-29T12:00:01.000Z"
+    });
+
+    expect(listener).toHaveBeenCalledExactlyOnceWith({
+      kind: "message-delta",
+      tabId: "one",
+      nodeId: "child",
+      messageId: "stream"
+    });
+  });
+
   it("writes a hidden-tab reply to the originating tab and marks it unread", () => {
     const tabsStore = conversationTabsStore("one", "two");
     const router = new TabResponseRouter(tabsStore);

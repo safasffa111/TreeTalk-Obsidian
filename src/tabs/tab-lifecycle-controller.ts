@@ -25,13 +25,19 @@ export type TabPersistencePort = Pick<
 
 export type SaveTabsWorkspace = () => Promise<void> | void;
 
+export interface HistoryLifecycleIndexPort {
+  upsert(folder: string, conversation: ConversationFile): void;
+  remove(conversationId: string): void;
+}
+
 export class TabLifecycleController {
   constructor(
     private readonly tabs: ConversationTabsStore,
     private readonly persistence: TabPersistencePort,
     private readonly archive: ArchiveLifecyclePort,
     private readonly queue: LifecycleQueue,
-    private readonly saveWorkspace: SaveTabsWorkspace
+    private readonly saveWorkspace: SaveTabsWorkspace,
+    private readonly historyIndex?: HistoryLifecycleIndexPort
   ) {}
 
   async close(tabId: string): Promise<void> {
@@ -55,6 +61,7 @@ export class TabLifecycleController {
       const archived = await this.queue.run(() =>
         this.archive.archive(current.folder, current.conversation)
       );
+      this.historyIndex?.upsert(archived.folder, archived.conversation);
       this.persistence.renameFolder(current.folder, archived.folder);
       this.persistence.seed(
         archived.folder,
@@ -85,6 +92,7 @@ export class TabLifecycleController {
       const restored = await this.queue.run(() =>
         this.archive.restore(current.folder, current.conversation)
       );
+      this.historyIndex?.remove(restored.conversation.id);
       this.persistence.renameFolder(current.folder, restored.folder);
       this.persistence.seed(
         restored.folder,

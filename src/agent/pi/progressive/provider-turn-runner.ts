@@ -1,5 +1,6 @@
 import { estimateTextTokens } from "../../../domain/context-engine";
 import { canUseBufferedFallback as defaultCanUseBufferedFallback } from "../../../providers/streaming-transport";
+import { waitForRetry } from "../../../providers/request-control";
 import type {
   NormalizedUsage,
   ProviderEvent,
@@ -25,7 +26,10 @@ import {
 } from "./transient-provider-error";
 
 export interface ProgressiveProviderTurnDependencies {
-  bufferedRequest(request: ProviderRequest): Promise<PiBufferedResponse>;
+  bufferedRequest(
+    request: ProviderRequest,
+    signal: AbortSignal
+  ): Promise<PiBufferedResponse>;
   streamRequest?(
     profile: ProviderProfile,
     request: ProviderRequest,
@@ -218,7 +222,10 @@ export async function* runProgressiveProviderTurn(
     const estimatedInputTokens = estimateTextTokens(
       JSON.stringify(providerRequest.body)
     );
-    const response = await input.dependencies.bufferedRequest(providerRequest);
+    const response = await input.dependencies.bufferedRequest(
+      providerRequest,
+      input.signal
+    );
     if (response.status >= 400) {
       const message = errorMessage(response.status, response.json);
       if (isTransientProviderStatus(response.status)) {
@@ -255,9 +262,7 @@ export async function* runProgressiveProviderTurn(
       return await runBufferedOnce(thinkingEnabled, attemptKind);
     } catch (error) {
       if (!isTransientHttpError(error)) throw error;
-      await new Promise((resolve) =>
-        setTimeout(resolve, TRANSIENT_RETRY_DELAY_MS)
-      );
+      await waitForRetry(TRANSIENT_RETRY_DELAY_MS, input.signal);
       return await runBufferedOnce(thinkingEnabled, attemptKind);
     }
   };

@@ -9,6 +9,7 @@ import {
   conversationTab,
   conversationTabsStore
 } from "../helpers/tab-fixtures";
+import { TabResponseRouter } from "../../src/tabs/tab-response-router";
 
 function actions(
   overrides: Partial<ConversationSwitcherActions> = {}
@@ -22,6 +23,32 @@ function actions(
 }
 
 describe("conversation tree switcher", () => {
+  it("keeps the switcher DOM intact for active streaming text", () => {
+    const container = document.createElement("div");
+    const store = conversationTabsStore("one");
+    const router = new TabResponseRouter(store);
+    const ticket = router.capture("one", "child");
+    router.start(ticket, {
+      conversationId: "one",
+      nodeId: "child",
+      messageId: "stream",
+      modelId: "test-model",
+      now: "2026-07-29T12:00:00.000Z"
+    });
+    renderConversationSwitcher(container, store, actions());
+    const trigger = container.querySelector(".treetalk-space-trigger");
+
+    router.delta(ticket, {
+      conversationId: "one",
+      nodeId: "child",
+      messageId: "stream",
+      delta: "hello",
+      now: "2026-07-29T12:00:01.000Z"
+    });
+
+    expect(container.querySelector(".treetalk-space-trigger")).toBe(trigger);
+  });
+
   it("expands the ordered open conversations below the current space", () => {
     const container = document.createElement("div");
     renderConversationSwitcher(

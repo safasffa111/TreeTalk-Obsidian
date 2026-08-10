@@ -1,6 +1,7 @@
 import type { ProviderMessage } from "../../../domain/context-builder";
 import { DeepSeekProvider } from "../../../providers/deepseek-provider";
 import { canUseBufferedFallback as defaultCanUseBufferedFallback } from "../../../providers/streaming-transport";
+import { waitForRetry } from "../../../providers/request-control";
 import type {
   NormalizedUsage,
   ProviderEvent,
@@ -30,7 +31,10 @@ export interface NativeWebSearchInput {
   query: string;
   reason: string;
   signal: AbortSignal;
-  bufferedRequest(request: ProviderRequest): Promise<PiBufferedResponse>;
+  bufferedRequest(
+    request: ProviderRequest,
+    signal: AbortSignal
+  ): Promise<PiBufferedResponse>;
   streamRequest?(
     profile: ProviderProfile,
     request: ProviderRequest,
@@ -170,7 +174,7 @@ export async function executeNativeWebSearch(
       { ...providerInput, stream: false },
       input.profile
     );
-    const response = await input.bufferedRequest(request);
+    const response = await input.bufferedRequest(request, input.signal);
     if (input.signal.aborted) throw new DOMException("Aborted", "AbortError");
     if (response.status >= 400) {
       const message = errorMessage(response.status, response.json);
@@ -189,9 +193,7 @@ export async function executeNativeWebSearch(
       await runBuffered();
     } catch (error) {
       if (!isTransientHttpError(error)) throw error;
-      await new Promise((resolve) =>
-        setTimeout(resolve, TRANSIENT_RETRY_DELAY_MS)
-      );
+      await waitForRetry(TRANSIENT_RETRY_DELAY_MS, input.signal);
       await runBuffered();
     }
   };

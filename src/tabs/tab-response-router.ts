@@ -54,8 +54,11 @@ export class TabResponseRouter {
   }
 
   delta(ticket: TabResponseTicket, response: AssistantDeltaInput): void {
-    this.update(ticket, response, (conversation) =>
-      appendAssistantDelta(conversation, response)
+    this.update(
+      ticket,
+      response,
+      (conversation) => appendAssistantDelta(conversation, response),
+      "message-delta"
     );
   }
 
@@ -76,8 +79,9 @@ export class TabResponseRouter {
 
   private update(
     ticket: TabResponseTicket,
-    response: { conversationId: string; nodeId: string },
-    mutate: (conversation: ConversationFile) => ConversationFile
+    response: { conversationId: string; nodeId: string; messageId: string },
+    mutate: (conversation: ConversationFile) => ConversationFile,
+    changeKind: "full" | "message-delta" = "full"
   ): void {
     const tab = this.store.getTab(ticket.tabId);
     if (
@@ -93,14 +97,24 @@ export class TabResponseRouter {
       throw new Error("Response ticket is stale");
     }
     const hidden = this.store.getSnapshot().activeTabId !== ticket.tabId;
-    this.store.updateTab(ticket.tabId, (current) => {
-      const conversation = mutate(current.conversation);
-      return {
-        ...current,
-        title: conversation.title,
-        unread: current.unread || hidden,
-        conversation
-      };
-    });
+    this.store.updateTab(
+      ticket.tabId,
+      (current) => {
+        const conversation = mutate(current.conversation);
+        return {
+          ...current,
+          title: conversation.title,
+          unread: current.unread || hidden,
+          conversation
+        };
+      },
+      changeKind === "message-delta"
+        ? {
+            kind: "message-delta",
+            nodeId: response.nodeId,
+            messageId: response.messageId
+          }
+        : undefined
+    );
   }
 }

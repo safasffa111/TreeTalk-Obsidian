@@ -1,5 +1,15 @@
 # TreeTalk Changelog
 
+## 0.9.5: Optimization release
+
+- Coalesce canonical streaming text updates at 100 ms so long answers avoid
+  excessive full-conversation copying while their trailing text still flushes
+  before completion or interruption.
+- Coalesce routine persistence at 1000 ms and immediately flush the latest
+  snapshot when a response terminates or the active tab changes.
+- Validate release metadata by cross-file consistency instead of hard-coding a
+  release version in the quality gate.
+
 ## 0.9.4: Review compliance for graph maximize
 
 - Clear the maximized window's inline geometry with `removeProperty` instead of

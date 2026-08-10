@@ -4,15 +4,26 @@ import test from "node:test";
 
 const readJson = (path) => JSON.parse(readFileSync(path, "utf8"));
 
-void test("0.9.4 release metadata is synchronized", () => {
+void test("release metadata is synchronized", () => {
   const packageJson = readJson("package.json");
   const packageLock = readJson("package-lock.json");
   const manifest = readJson("manifest.json");
   const versions = readJson("versions.json");
-  assert.equal(packageJson.version, "0.9.4");
-  assert.equal(packageLock.version, "0.9.4");
-  assert.equal(packageLock.packages[""]["version"], "0.9.4");
-  assert.equal(manifest.version, "0.9.4");
+  const version = packageJson.version;
+
+  assert.equal(typeof version, "string");
+  assert.notEqual(version.trim(), "");
+  assert.equal(packageLock.version, version);
+  assert.equal(packageLock.packages[""]["version"], version);
+  assert.equal(manifest.version, version);
   assert.equal(manifest.author, "Len_shan");
-  assert.equal(versions["0.9.4"], "1.13.0");
+  assert.equal(versions[version], manifest.minAppVersion);
+});
+
+void test("release workflow runs the complete quality gate", () => {
+  const packageJson = readJson("package.json");
+  const releaseWorkflow = readFileSync(".github/workflows/release.yml", "utf8");
+
+  assert.equal(packageJson.scripts.check, "npm run verify && npm run regression");
+  assert.match(releaseWorkflow, /npm run check/u);
 });

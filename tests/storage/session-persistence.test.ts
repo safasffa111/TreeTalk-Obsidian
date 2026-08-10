@@ -108,6 +108,48 @@ describe("SessionPersistence", () => {
     });
   });
 
+  it("keeps only the latest snapshot queued behind a running save", async () => {
+    const savedRevisions: number[] = [];
+    let markStarted: (() => void) | undefined;
+    let releaseFirst: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const repository = {
+      save: async (
+        _folder: string,
+        conversation: ReturnType<typeof validConversation>
+      ) => {
+        savedRevisions.push(conversation.revision);
+        if (conversation.revision === 2) {
+          markStarted?.();
+          await firstGate;
+        }
+        return conversation;
+      }
+    };
+    const persistence = new SessionPersistence(repository as never);
+    persistence.seed(FIRST, 1);
+    const second = structuredClone(validConversation());
+    second.revision = 2;
+    const third = structuredClone(second);
+    third.revision = 3;
+    const fourth = structuredClone(third);
+    fourth.revision = 4;
+
+    persistence.schedule(FIRST, second);
+    await started;
+    persistence.schedule(FIRST, third);
+    persistence.schedule(FIRST, fourth);
+    releaseFirst?.();
+    await persistence.flush(FIRST);
+
+    expect(savedRevisions).toEqual([2, 4]);
+  });
+
   it("redirects a queued save when Obsidian renames the conversation folder", async () => {
     const savedFolders: string[] = [];
     const repository = {

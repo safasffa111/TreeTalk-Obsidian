@@ -15,16 +15,24 @@ import { ConversationSessionStore } from "../../src/state/conversation-session-s
 import type { ConversationStorePort } from "../../src/tabs/active-conversation-store";
 import {
   attachSelectionContext,
+  buildSelectionTraceIndex,
   renderConversationPanel,
   selectionTracesForMessage
 } from "../../src/views/conversation-view";
-import type { MessageRendererFactory } from "../../src/views/message-renderer";
+import {
+  plainTextMessageRendererFactory,
+  type MessageRendererFactory
+} from "../../src/views/message-renderer";
 import {
   parseExcerptPayload,
   TREETALK_EXCERPT_MIME
 } from "../../src/knowledge/excerpt-drag";
 import type { NoteSelectionContext } from "../../src/domain/types";
 import { validConversation } from "../fixtures";
+import { ActiveConversationStore } from "../../src/tabs/active-conversation-store";
+import { TabResponseRouter } from "../../src/tabs/tab-response-router";
+import { conversationTabsStore } from "../helpers/tab-fixtures";
+import type { TransientUsagePort } from "../../src/providers/transient-usage-store";
 
 function appendMessage(
   conversation: ReturnType<typeof validConversation>,
@@ -43,6 +51,54 @@ function appendMessage(
 }
 
 describe("conversation panel", () => {
+  it("does not rescan unrelated message metadata for a streaming delta", async () => {
+    const tabs = conversationTabsStore("one");
+    const store = new ActiveConversationStore(tabs);
+    const router = new TabResponseRouter(tabs);
+    const ticket = router.capture("one", "child");
+    router.start(ticket, {
+      conversationId: "one",
+      nodeId: "child",
+      messageId: "stream",
+      modelId: "test-model",
+      now: "2026-07-29T12:00:00.000Z"
+    });
+    const get = vi.fn(() => undefined);
+    const transientUsage: TransientUsagePort = {
+      get,
+      clear: vi.fn(),
+      subscribe: () => () => undefined
+    };
+    const container = document.createElement("div");
+    renderConversationPanel(
+      container,
+      store,
+      undefined,
+      plainTextMessageRendererFactory,
+      undefined,
+      { transientUsage }
+    );
+    await vi.waitFor(() => {
+      expect(container.querySelector('[data-message-id="stream"]')).not.toBeNull();
+    });
+    get.mockClear();
+
+    router.delta(ticket, {
+      conversationId: "one",
+      nodeId: "child",
+      messageId: "stream",
+      delta: "hello",
+      now: "2026-07-29T12:00:01.000Z"
+    });
+
+    expect(get).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(
+        container.querySelector('[data-message-id="stream"]')?.textContent
+      ).toContain("hello");
+    });
+  });
+
   it("does not render a composer when no conversation tab is open", () => {
     const store: ConversationStorePort = {
       getSnapshot: () => undefined,
@@ -464,6 +520,56 @@ describe("conversation panel", () => {
     });
 
     expect(selectionTracesForMessage(conversation, "answer")).toEqual([]);
+  });
+
+  it("builds one reverse index for message selection traces", async () => {
+    const conversation = validConversation();
+    appendMessage(
+      conversation,
+      "answer",
+      "assistant",
+      "TCP uses acknowledgements"
+    );
+    const anchor = await createSelectionAnchor({
+      messageId: "answer",
+      sourceNodeId: "child",
+      sourceRole: "assistant",
+      visibleText: "TCP uses acknowledgements",
+      startOffset: 9,
+      endOffset: 25
+    });
+    const selected = addSelectionToDraft(
+      conversation,
+      "child",
+      anchor,
+      conversation.updatedAt
+    );
+    const prepared = prepareChildDraft(selected, {
+      nodeId: "child",
+      now: conversation.updatedAt
+    });
+    const created = submitChildDraft(prepared, {
+      text: "How do acknowledgements work?",
+      childId: "grandchild",
+      messageId: "question",
+      now: conversation.updatedAt
+    }).state;
+
+    const index = buildSelectionTraceIndex(created);
+
+    expect([...index.keys()]).toEqual(["answer"]);
+    expect(index.get("answer")).toMatchObject([
+      {
+        targetNodeId: "grandchild",
+        anchor: {
+          messageId: "answer",
+          quote: "acknowledgements",
+          startOffset: 9,
+          endOffset: 25
+        }
+      }
+    ]);
+    expect(index.get("missing")).toBeUndefined();
   });
 
 
@@ -935,16 +1041,30 @@ describe("conversation panel", () => {
     container.remove();
   });
 
-  it("does not let a stale asynchronous render overwrite a newer conversation render", async () => {
+  it("keeps native streaming renders single-flight and skips obsolete snapshots", async () => {
     const conversation = validConversation();
-    appendMessage(conversation, "answer", "assistant", "old");
+    conversation.nodes.child?.messages.push({
+      id: "stream",
+      role: "assistant",
+      content: "old",
+      status: "streaming",
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt
+    });
+    let active = 0;
+    let maximumActive = 0;
+    const started: string[] = [];
     const pending: Array<() => void> = [];
     const rendererFactory: MessageRendererFactory = {
       create: () => ({
         render: (markdown, element) =>
           new Promise<void>((resolve) => {
+            active += 1;
+            maximumActive = Math.max(maximumActive, active);
+            started.push(markdown);
             pending.push(() => {
-              element.textContent = markdown;
+              element.textContent = `native:${markdown}`;
+              active -= 1;
               resolve();
             });
           }),
@@ -958,19 +1078,425 @@ describe("conversation panel", () => {
 
     store.update((current) => {
       const next = structuredClone(current);
-      const message = next.nodes.child?.messages[0];
-      if (message !== undefined) message.content = "new";
+      const message = next.nodes.child?.messages.find(
+        (entry) => entry.id === "stream"
+      );
+      if (message !== undefined) message.content = "new one";
       next.revision += 1;
       return next;
     });
+    store.update((current) => {
+      const next = structuredClone(current);
+      const message = next.nodes.child?.messages.find(
+        (entry) => entry.id === "stream"
+      );
+      if (message !== undefined) message.content = "new one two";
+      next.revision += 1;
+      return next;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+
+    expect(started).toEqual(["old"]);
+    expect(maximumActive).toBe(1);
+    expect(
+      container.querySelector(".treetalk-streaming-live-tail")?.textContent
+    ).toBe("new one two");
+
+    pending[0]?.();
+    await vi.waitFor(() => expect(started).toEqual(["old", "new one two"]));
+    pending[1]?.();
+    await vi.waitFor(() =>
+      expect(container.textContent).toContain("native:new one two")
+    );
+
+    expect(maximumActive).toBe(1);
+    expect(container.textContent).not.toContain("native:old");
+  });
+
+  it("keeps one live suffix while a monotonic native render catches up", async () => {
+    const conversation = validConversation();
+    conversation.nodes.child?.messages.push({
+      id: "stream",
+      role: "assistant",
+      content: "first",
+      status: "streaming",
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt
+    });
+    const pending: Array<() => void> = [];
+    const rendererFactory: MessageRendererFactory = {
+      create: () => ({
+        render: (markdown, element) =>
+          new Promise<void>((resolve) => {
+            pending.push(() => {
+              element.textContent = `native:${markdown}`;
+              resolve();
+            });
+          }),
+        dispose: vi.fn()
+      })
+    };
+    const store = new ConversationSessionStore(conversation);
+    const container = document.createElement("div");
+    renderConversationPanel(container, store, undefined, rendererFactory);
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+
+    store.update((current) => {
+      const next = structuredClone(current);
+      const message = next.nodes.child?.messages.find(
+        (entry) => entry.id === "stream"
+      );
+      if (message !== undefined) message.content = "first second";
+      next.revision += 1;
+      return next;
+    });
+    pending[0]?.();
+    await vi.waitFor(() =>
+      expect(
+        container.querySelector(".treetalk-streaming-live-tail")?.textContent
+      ).toBe(" second")
+    );
+    const content = container.querySelector<HTMLElement>(
+      "[data-message-id='stream'] .treetalk-message-content"
+    );
+    expect(content?.textContent).toBe("native:first second");
+
     await vi.waitFor(() => expect(pending).toHaveLength(2));
     pending[1]?.();
-    await Promise.resolve();
-    pending[0]?.();
-    await Promise.resolve();
+    await vi.waitFor(() =>
+      expect(content?.querySelector(".treetalk-streaming-live-tail")).toBeNull()
+    );
+    expect(content?.textContent).toBe("native:first second");
+  });
 
-    expect(container.textContent).toContain("new");
-    expect(container.textContent).not.toContain("old");
+  it("rejects a stale streaming render after a non-prefix completion", async () => {
+    const conversation = validConversation();
+    conversation.nodes.child?.messages.push({
+      id: "stream",
+      role: "assistant",
+      content: "draft tail",
+      status: "streaming",
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt
+    });
+    const started: string[] = [];
+    const pending: Array<() => void> = [];
+    const rendererFactory: MessageRendererFactory = {
+      create: () => ({
+        render: (markdown, element) =>
+          new Promise<void>((resolve) => {
+            started.push(markdown);
+            pending.push(() => {
+              element.textContent = `native:${markdown}`;
+              resolve();
+            });
+          }),
+        dispose: vi.fn()
+      })
+    };
+    const store = new ConversationSessionStore(conversation);
+    const container = document.createElement("div");
+    renderConversationPanel(container, store, undefined, rendererFactory);
+    await vi.waitFor(() => expect(pending).toHaveLength(1));
+
+    store.update((current) => {
+      const next = structuredClone(current);
+      const message = next.nodes.child?.messages.find(
+        (entry) => entry.id === "stream"
+      );
+      if (message !== undefined) {
+        message.content = "normalized final";
+        message.status = "complete";
+      }
+      next.revision += 1;
+      return next;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(started).toEqual(["draft tail"]);
+
+    pending[0]?.();
+    await vi.waitFor(() =>
+      expect(started).toEqual(["draft tail", "normalized final"])
+    );
+    expect(container.textContent).not.toContain("native:draft tail");
+    pending[1]?.();
+    await vi.waitFor(() =>
+      expect(container.textContent).toContain("native:normalized final")
+    );
+    expect(container.querySelector(".treetalk-streaming-live-tail")).toBeNull();
+  });
+
+  it("uses the adaptive cadence for a short streaming answer", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-10T00:00:00.000Z"));
+    let cleanup: (() => void) | undefined;
+    try {
+      const conversation = validConversation();
+      conversation.nodes.child?.messages.push({
+        id: "stream",
+        role: "assistant",
+        content: "first",
+        status: "streaming",
+        createdAt: conversation.createdAt,
+        updatedAt: conversation.updatedAt
+      });
+      const starts: Array<{ markdown: string; at: number }> = [];
+      const rendererFactory: MessageRendererFactory = {
+        create: () => ({
+          render: (markdown, element) => {
+            starts.push({ markdown, at: Date.now() });
+            element.textContent = markdown;
+            return Promise.resolve();
+          },
+          dispose: vi.fn()
+        })
+      };
+      const store = new ConversationSessionStore(conversation);
+      const container = document.createElement("div");
+      cleanup = renderConversationPanel(
+        container,
+        store,
+        undefined,
+        rendererFactory
+      );
+      vi.advanceTimersToNextFrame();
+      await Promise.resolve();
+      expect(starts).toHaveLength(1);
+
+      store.update((current) => {
+        const next = structuredClone(current);
+        const message = next.nodes.child?.messages.find(
+          (entry) => entry.id === "stream"
+        );
+        if (message !== undefined) message.content = "first second";
+        next.revision += 1;
+        return next;
+      });
+      expect(
+        container.querySelector(".treetalk-streaming-live-tail")?.textContent
+      ).toBe(" second");
+
+      await vi.advanceTimersByTimeAsync(119);
+      expect(starts).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(1);
+      vi.advanceTimersToNextFrame();
+      await Promise.resolve();
+
+      expect(starts.map((entry) => entry.markdown)).toEqual([
+        "first",
+        "first second"
+      ]);
+      expect(starts[1]!.at - starts[0]!.at).toBeGreaterThanOrEqual(120);
+    } finally {
+      cleanup?.();
+      vi.useRealTimers();
+    }
+  });
+
+  it("uses the long render cadence and keeps only the latest snapshot", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-10T00:00:00.000Z"));
+    let cleanup: (() => void) | undefined;
+    try {
+      const initial = "x".repeat(8_001);
+      const conversation = validConversation();
+      conversation.nodes.child?.messages.push({
+        id: "stream",
+        role: "assistant",
+        content: initial,
+        status: "streaming",
+        createdAt: conversation.createdAt,
+        updatedAt: conversation.updatedAt
+      });
+      const renderedMarkdown: string[] = [];
+      const rendererFactory: MessageRendererFactory = {
+        create: () => ({
+          render: (markdown, element) => {
+            renderedMarkdown.push(markdown);
+            element.textContent = markdown;
+            return Promise.resolve();
+          },
+          dispose: vi.fn()
+        })
+      };
+      const store = new ConversationSessionStore(conversation);
+      const container = document.createElement("div");
+      cleanup = renderConversationPanel(
+        container,
+        store,
+        undefined,
+        rendererFactory
+      );
+      vi.advanceTimersToNextFrame();
+      await Promise.resolve();
+      expect(renderedMarkdown).toEqual([initial]);
+
+      for (const suffix of ["-middle", "-middle-latest"]) {
+        store.update((current) => {
+          const next = structuredClone(current);
+          const message = next.nodes.child?.messages.find(
+            (entry) => entry.id === "stream"
+          );
+          if (message !== undefined) message.content = `${initial}${suffix}`;
+          next.revision += 1;
+          return next;
+        });
+      }
+      expect(
+        container.querySelector(".treetalk-streaming-live-tail")?.textContent
+      ).toBe("-middle-latest");
+
+      await vi.advanceTimersByTimeAsync(359);
+      expect(renderedMarkdown).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(1);
+      vi.advanceTimersToNextFrame();
+      await Promise.resolve();
+
+      expect(renderedMarkdown).toEqual([
+        initial,
+        `${initial}-middle-latest`
+      ]);
+    } finally {
+      cleanup?.();
+      vi.useRealTimers();
+    }
+  });
+
+  it("lets a terminal response preempt the adaptive streaming delay", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-10T00:00:00.000Z"));
+    let cleanup: (() => void) | undefined;
+    try {
+      const conversation = validConversation();
+      conversation.nodes.child?.messages.push({
+        id: "stream",
+        role: "assistant",
+        content: "draft",
+        status: "streaming",
+        createdAt: conversation.createdAt,
+        updatedAt: conversation.updatedAt
+      });
+      const renderedMarkdown: string[] = [];
+      const rendererFactory: MessageRendererFactory = {
+        create: () => ({
+          render: (markdown, element) => {
+            renderedMarkdown.push(markdown);
+            element.textContent = markdown;
+            return Promise.resolve();
+          },
+          dispose: vi.fn()
+        })
+      };
+      const store = new ConversationSessionStore(conversation);
+      const container = document.createElement("div");
+      cleanup = renderConversationPanel(
+        container,
+        store,
+        undefined,
+        rendererFactory
+      );
+      vi.advanceTimersToNextFrame();
+      await Promise.resolve();
+
+      store.update((current) => {
+        const next = structuredClone(current);
+        const message = next.nodes.child?.messages.find(
+          (entry) => entry.id === "stream"
+        );
+        if (message !== undefined) message.content = "draft more";
+        next.revision += 1;
+        return next;
+      });
+      await vi.advanceTimersByTimeAsync(100);
+      expect(renderedMarkdown).toEqual(["draft"]);
+
+      store.update((current) => {
+        const next = structuredClone(current);
+        const message = next.nodes.child?.messages.find(
+          (entry) => entry.id === "stream"
+        );
+        if (message !== undefined) {
+          message.content = "normalized final";
+          message.status = "complete";
+        }
+        next.revision += 1;
+        return next;
+      });
+      vi.advanceTimersToNextFrame();
+      await Promise.resolve();
+
+      expect(renderedMarkdown).toEqual(["draft", "normalized final"]);
+      expect(container.querySelector(".treetalk-streaming-live-tail")).toBeNull();
+      await vi.advanceTimersByTimeAsync(200);
+      expect(renderedMarkdown).toEqual(["draft", "normalized final"]);
+    } finally {
+      cleanup?.();
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not add another delay after a slow native render", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-10T00:00:00.000Z"));
+    let cleanup: (() => void) | undefined;
+    try {
+      const conversation = validConversation();
+      conversation.nodes.child?.messages.push({
+        id: "stream",
+        role: "assistant",
+        content: "draft",
+        status: "streaming",
+        createdAt: conversation.createdAt,
+        updatedAt: conversation.updatedAt
+      });
+      const started: string[] = [];
+      const pending: Array<() => void> = [];
+      const rendererFactory: MessageRendererFactory = {
+        create: () => ({
+          render: (markdown, element) =>
+            new Promise<void>((resolve) => {
+              started.push(markdown);
+              pending.push(() => {
+                element.textContent = markdown;
+                resolve();
+              });
+            }),
+          dispose: vi.fn()
+        })
+      };
+      const store = new ConversationSessionStore(conversation);
+      const container = document.createElement("div");
+      cleanup = renderConversationPanel(
+        container,
+        store,
+        undefined,
+        rendererFactory
+      );
+      vi.advanceTimersToNextFrame();
+      expect(started).toEqual(["draft"]);
+
+      store.update((current) => {
+        const next = structuredClone(current);
+        const message = next.nodes.child?.messages.find(
+          (entry) => entry.id === "stream"
+        );
+        if (message !== undefined) message.content = "draft more";
+        next.revision += 1;
+        return next;
+      });
+      await vi.advanceTimersByTimeAsync(200);
+      expect(started).toEqual(["draft"]);
+
+      pending[0]?.();
+      await vi.advanceTimersByTimeAsync(0);
+      vi.advanceTimersToNextFrame();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(started).toEqual(["draft", "draft more"]);
+    } finally {
+      cleanup?.();
+      vi.useRealTimers();
+    }
   });
   it("falls back to flashing the whole message when the character anchor is unresolved", async () => {
     const conversation = validConversation();
@@ -1233,6 +1759,115 @@ describe("conversation panel", () => {
     expect(container.textContent).toContain("笔记实际发送2,200");
   });
 
+
+  it("keeps unchanged Token details while another message streams", () => {
+    const conversation = validConversation();
+    appendMessage(conversation, "answer-note", "assistant", "answer");
+    conversation.nodes.child?.messages.push({
+      id: "stream",
+      role: "assistant",
+      content: "first",
+      status: "streaming",
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt
+    });
+    const usage = new TransientUsageStore();
+    usage.set("answer-note", {
+      mode: "full",
+      fullEstimatedTokens: 900,
+      sentEstimatedTokens: 420,
+      reducedTokens: 0,
+      reductionRatio: 0,
+      promptTokens: 420,
+      completionTokens: 80
+    });
+    const store = new ConversationSessionStore(conversation);
+    const container = document.createElement("div");
+    renderConversationPanel(
+      container,
+      store,
+      undefined,
+      undefined,
+      undefined,
+      { transientUsage: usage }
+    );
+    const before = container.querySelector<HTMLDetailsElement>(
+      "[data-message-id='answer-note'] .treetalk-token-stats"
+    );
+    if (before === null) throw new Error("Token details are missing");
+    before.open = true;
+
+    store.update((current) => {
+      const next = structuredClone(current);
+      const stream = next.nodes.child?.messages.find(
+        (item) => item.id === "stream"
+      );
+      if (stream !== undefined) stream.content += " more";
+      next.revision += 1;
+      return next;
+    });
+
+    const after = container.querySelector<HTMLDetailsElement>(
+      "[data-message-id='answer-note'] .treetalk-token-stats"
+    );
+    expect(after).toBe(before);
+    expect(after?.open).toBe(true);
+  });
+
+  it("keeps unchanged Agent details while another message streams", () => {
+    const conversation = validConversation();
+    appendMessage(conversation, "agent-answer", "assistant", "answer");
+    const agentAnswer = conversation.nodes.child?.messages.find(
+      (message) => message.id === "agent-answer"
+    );
+    if (agentAnswer === undefined) throw new Error("Agent answer is missing");
+    agentAnswer.agentRun = {
+      protocol: "pi-agent-run:v1",
+      executionMode: "pi",
+      status: "completed",
+      roleId: "direct",
+      routeId: "default",
+      providerId: "openai",
+      modelId: "gpt-test",
+      stages: [],
+      toolExecutions: [],
+      sources: [],
+      startedAt: conversation.createdAt,
+      finishedAt: conversation.updatedAt
+    };
+    conversation.nodes.child?.messages.push({
+      id: "stream",
+      role: "assistant",
+      content: "first",
+      status: "streaming",
+      createdAt: conversation.createdAt,
+      updatedAt: conversation.updatedAt
+    });
+    const store = new ConversationSessionStore(conversation);
+    const container = document.createElement("div");
+    renderConversationPanel(container, store);
+    const before = container.querySelector<HTMLDetailsElement>(
+      "[data-message-id='agent-answer'] .treetalk-agent-execution"
+    );
+    if (before === null) throw new Error("Agent details are missing");
+    before.open = true;
+
+    store.update((current) => {
+      const next = structuredClone(current);
+      const stream = next.nodes.child?.messages.find(
+        (item) => item.id === "stream"
+      );
+      if (stream !== undefined) stream.content += " more";
+      next.revision += 1;
+      return next;
+    });
+
+    const after = container.querySelector<HTMLDetailsElement>(
+      "[data-message-id='agent-answer'] .treetalk-agent-execution"
+    );
+    expect(after).toBe(before);
+    expect(after?.open).toBe(true);
+  });
 
   it("synchronizes the composer web-search button through one global control", async () => {
     const conversation = validConversation();

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { OpenAiProvider } from "../../src/providers/openai-provider";
 import {
   assertStreamCompleted,
@@ -9,6 +9,8 @@ import {
 } from "../../src/providers/streaming-transport";
 
 describe("StreamingProviderTransport", () => {
+  afterEach(() => vi.useRealTimers());
+
   it("decodes split UTF-8 SSE chunks as provider events", async () => {
     const encoder = new TextEncoder();
     const body = new ReadableStream<Uint8Array>({
@@ -114,5 +116,33 @@ describe("StreamingProviderTransport", () => {
       "completion frame"
     );
     expect(() => assertStreamCompleted(true, true)).not.toThrow();
+  });
+
+  it("aborts the fetch signal when the streaming deadline expires", async () => {
+    vi.useFakeTimers();
+    let fetchSignal: AbortSignal | undefined;
+    const fetcher: StreamingFetch = vi.fn((_url: string, init: RequestInit) => {
+      fetchSignal = init.signal as AbortSignal;
+      return new Promise<never>(() => undefined);
+    });
+    const transport = new StreamingProviderTransport(fetcher, 25);
+    const pending = transport
+      .stream(
+        new OpenAiProvider(),
+        {
+          url: "https://example.test",
+          method: "POST",
+          headers: {},
+          body: {}
+        },
+        new AbortController().signal
+      )
+      .next();
+    const rejection = expect(pending).rejects.toThrow("timed out");
+
+    await vi.advanceTimersByTimeAsync(25);
+
+    expect(fetchSignal?.aborted).toBe(true);
+    await rejection;
   });
 });

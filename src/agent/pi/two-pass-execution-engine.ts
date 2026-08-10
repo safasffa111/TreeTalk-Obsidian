@@ -56,7 +56,10 @@ export interface PiWebPageResponse {
 }
 
 export interface TwoPassPiExecutionEngineDependencies {
-  bufferedRequest(request: ProviderRequest): Promise<PiBufferedResponse>;
+  bufferedRequest(
+    request: ProviderRequest,
+    signal: AbortSignal
+  ): Promise<PiBufferedResponse>;
   webPageRequest?(url: string, signal: AbortSignal): Promise<PiWebPageResponse>;
   streamRequest?(
     profile: ProviderProfile,
@@ -222,7 +225,10 @@ async function* executePiAnswerPass(
       stream: false,
       thinkingEnabled
     });
-    const response = await input.dependencies.bufferedRequest(providerRequest);
+    const response = await input.dependencies.bufferedRequest(
+      providerRequest,
+      input.signal
+    );
     if (response.status >= 400) {
       throw new Error(errorMessage(response.status, response.json));
     }
@@ -512,7 +518,10 @@ export class TwoPassPiExecutionEngine implements ExecutionEngine {
         stream: false,
         thinkingEnabled: false
       });
-      const response = await this.dependencies.bufferedRequest(providerRequest);
+      const response = await this.dependencies.bufferedRequest(
+        providerRequest,
+        signal
+      );
       if (response.status >= 400) {
         throw new Error(errorMessage(response.status, response.json));
       }

@@ -3,6 +3,7 @@ import {
   parseTabsWorkspaceData,
   restoreTabsWorkspace,
   serializeTabsWorkspace,
+  tabsWorkspaceDataEqual,
   type RestoredTabDescriptor,
   type TabsWorkspaceData
 } from "../../src/tabs/workspace-state";
@@ -42,6 +43,22 @@ describe("tabs workspace state", () => {
       activeConversationId: "two",
       openConversationIds: ["one", "two"]
     });
+  });
+
+  it("recognizes unchanged workspace layouts", () => {
+    const layout: TabsWorkspaceData = {
+      schemaVersion: 1,
+      activeConversationId: "two",
+      openConversationIds: ["one", "two"]
+    };
+
+    expect(tabsWorkspaceDataEqual(layout, structuredClone(layout))).toBe(true);
+    expect(
+      tabsWorkspaceDataEqual(layout, {
+        ...layout,
+        openConversationIds: ["two", "one"]
+      })
+    ).toBe(false);
   });
 
   it("falls back to the first valid restored tab when the active entry is missing", async () => {
