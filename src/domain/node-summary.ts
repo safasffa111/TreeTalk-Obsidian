@@ -14,7 +14,7 @@ export const NODE_SUMMARY_SYSTEM_PROMPT = [
   "请根据父节点主题、框选内容、当前问题和回答节选，生成一个适合树状列表回溯的短索引标题。",
   "要求：",
   "1. 只输出一行标题。",
-  "2. 中文目标为 4～10 个汉字，必要时最多 12 个字符。",
+  "2. 中文目标为 4～10 个汉字，最长不超过 50 个字符。",
   "3. 英文目标为 2～6 个单词。",
   "4. 优先保留一个核心对象和一个关键关系。",
   "5. 标题应简短、直观、能够与相邻节点区分。",
@@ -110,7 +110,7 @@ export function cleanNodeSummaryTitle(value: string): string | undefined {
     .trim();
   const hasHan = /\p{Script=Han}/u.test(title);
   if (hasHan) {
-    title = [...title].slice(0, 12).join("").trim();
+    title = [...title].slice(0, 50).join("").trim();
   } else {
     title = title.split(/\s+/u).slice(0, 6).join(" ").trim();
     title = [...title].slice(0, 40).join("").trim();

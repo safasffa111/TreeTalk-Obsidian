@@ -1,5 +1,10 @@
 # TreeTalk Changelog
 
+## Unreleased: 节点摘要标题长度放宽
+
+- 节点摘要（树状列表索引标题）的中文硬截断从 12 字符放宽到 50 字符；
+  prompt 目标保持 4～10 个汉字（短标题优先），超长标题不再被生硬截断成半句话。
+
 ## 0.9.5: Optimization release
 
 - Coalesce canonical streaming text updates at 100 ms so long answers avoid

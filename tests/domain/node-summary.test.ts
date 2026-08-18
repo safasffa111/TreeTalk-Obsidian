@@ -73,7 +73,7 @@ describe("node summaries", () => {
 
   it("cleans one-line names and rejects generic sentence prefixes", () => {
     expect(cleanNodeSummaryTitle('### “旧回答冻结裁剪机制说明补充文字。”\n解释')).toBe(
-      "旧回答冻结裁剪机制说明补"
+      "旧回答冻结裁剪机制说明补充文字"
     );
     expect(cleanNodeSummaryTitle("Cache Hit Cost Reduction Strategy Notes")).toBe(
       "Cache Hit Cost Reduction Strategy Notes"

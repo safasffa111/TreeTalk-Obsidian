@@ -106,7 +106,7 @@ void test("node summary prompt clips fields, strips web references, and cleans o
   assert.match(systemPrompt, /4～10 个汉字/u);
   assert.match(systemPrompt, /核心对象和一个关键关系/u);
   assert.match(systemPrompt, /不要机械拼接父节点标题/u);
-  assert.equal(cleanNodeSummaryTitle('### “旧回答冻结裁剪机制说明补充文字。”\n第二行'), "旧回答冻结裁剪机制说明补");
+  assert.equal(cleanNodeSummaryTitle('### “旧回答冻结裁剪机制说明补充文字。”\n第二行'), "旧回答冻结裁剪机制说明补充文字");
   assert.equal(cleanNodeSummaryTitle("One Two Three Four Five Six Seven"), "One Two Three Four Five Six");
   assert.equal(cleanNodeSummaryTitle("本节点讨论了端口号的作用"), undefined);
 });
