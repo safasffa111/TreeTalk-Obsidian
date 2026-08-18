@@ -173,13 +173,14 @@ void test("OpenAI and DeepSeek request cache usage without exposing fake cache c
   const deepseek = new DeepSeekProvider().buildRequest({ ...input, model: "deepseek-v4-flash" }, {
     id: "deepseek", name: "DeepSeek", kind: "deepseek", apiKey: "secret", baseUrl: ""
   });
-  assert.equal(deepseek.url, "https://api.deepseek.com/anthropic/v1/messages");
-  assert.equal(deepseek.responseFormat, "anthropic");
+  assert.equal(deepseek.url, "https://api.deepseek.com/chat/completions");
+  assert.equal(deepseek.responseFormat, "openai");
+  assert.deepEqual(deepseek.body.stream_options, { include_usage: true });
   assert.equal("tools" in deepseek.body, false);
   assert.equal("prompt_cache_key" in deepseek.body, false);
 });
 
-void test("DeepSeek keeps the working Anthropic transport after web search is disabled", () => {
+void test("DeepSeek returns to Chat Completions after web search is disabled", () => {
   const { DeepSeekProvider } = load("src/providers/deepseek-provider.js");
   const provider = new DeepSeekProvider();
   const profile = {
@@ -205,13 +206,13 @@ void test("DeepSeek keeps the working Anthropic transport after web search is di
   );
 
   assert.equal(online.url, "https://api.deepseek.com/anthropic/v1/messages");
-  assert.equal(offline.url, "https://api.deepseek.com/anthropic/v1/messages");
-  assert.equal(offline.responseFormat, "anthropic");
+  assert.equal(offline.url, "https://api.deepseek.com/chat/completions");
+  assert.equal(offline.responseFormat, "openai");
   assert.equal("tools" in offline.body, false);
   assert.equal("tool_choice" in offline.body, false);
 });
 
-void test("DeepSeek canonicalizes official base URL variants before choosing a transport", () => {
+void test("DeepSeek canonicalizes official base URL variants for Chat Completions", () => {
   const { DeepSeekProvider } = load("src/providers/deepseek-provider.js");
   const provider = new DeepSeekProvider();
   const input = {
@@ -233,7 +234,7 @@ void test("DeepSeek canonicalizes official base URL variants before choosing a t
       apiKey: "secret",
       baseUrl
     });
-    assert.equal(request.url, "https://api.deepseek.com/anthropic/v1/messages");
+    assert.equal(request.url, "https://api.deepseek.com/chat/completions");
   }
 });
 
@@ -363,12 +364,14 @@ void test("transient token stats use the agreed display thresholds", () => {
   assert.equal(store.get("message"), undefined);
 });
 
-void test("plugin settings normalize to fixed full context and DeepSeek", () => {
+void test("plugin settings normalize to fixed full context and preserve provider", () => {
   const { parsePluginData } = load("src/tabs/plugin-data.js");
   const migrated = parsePluginData({ provider: "openai", model: "gpt-test" });
   assert.equal(migrated.settings.contextOptimizationEnabled, false);
   assert.equal(migrated.settings.contextMode, "full");
   assert.equal(migrated.settings.webSearchEnabled, false);
+  assert.equal(migrated.settings.provider, "openai");
+  assert.equal(migrated.settings.model, "gpt-test");
   const deepseek = parsePluginData({
     settings: {
       ...migrated.settings,
@@ -381,9 +384,9 @@ void test("plugin settings normalize to fixed full context and DeepSeek", () => 
   assert.equal(deepseek.settings.provider, "deepseek");
   assert.equal(deepseek.settings.contextMode, "full");
   assert.equal(deepseek.settings.contextOptimizationEnabled, false);
-  const legacy = parsePluginData({ settings: { ...migrated.settings, provider: "deepseek", model: "deepseek-chat", webSearchEnabled: true } });
-  assert.equal(legacy.settings.model, "deepseek-v4-flash");
-  assert.equal(legacy.settings.webSearchEnabled, true);
+  const preserved = parsePluginData({ settings: { ...migrated.settings, provider: "deepseek", model: "deepseek-chat", webSearchEnabled: true } });
+  assert.equal(preserved.settings.model, "deepseek-chat");
+  assert.equal(preserved.settings.webSearchEnabled, true);
 });
 
 void test("full and balanced modes use versioned OpenAI cache routing keys", () => {

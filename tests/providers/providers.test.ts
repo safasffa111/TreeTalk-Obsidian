@@ -3,6 +3,8 @@ import { AnthropicProvider } from "../../src/providers/anthropic-provider";
 import { DeepSeekProvider } from "../../src/providers/deepseek-provider";
 import { GeminiProvider } from "../../src/providers/gemini-provider";
 import { OpenAiProvider } from "../../src/providers/openai-provider";
+import { ProviderRegistry } from "../../src/providers/provider-registry";
+import { resolveProfile } from "../../src/providers/presets";
 import type { ProviderInput, ProviderProfile } from "../../src/providers/types";
 
 const INPUT: ProviderInput = {
@@ -27,6 +29,33 @@ function profile(kind: ProviderProfile["kind"]): ProviderProfile {
 }
 
 describe("provider request adapters", () => {
+  it("selects DeepSeekProvider from the resolved DeepSeek profile", () => {
+    const resolved = resolveProfile({
+      provider: "deepseek",
+      model: "deepseek-v4-flash",
+      baseUrl: "",
+      apiKey: "secret"
+    });
+    const provider = new ProviderRegistry().get(resolved);
+
+    expect(provider.kind).toBe("deepseek");
+    expect(
+      provider.buildRequest({ ...INPUT, model: "deepseek-v4-flash" }, resolved).url
+    ).toBe("https://api.deepseek.com/chat/completions");
+  });
+
+  it("builds the MiniMax preset URL as an Anthropic messages request", () => {
+    const resolved = resolveProfile({
+      provider: "minimax",
+      model: "MiniMax-M3",
+      baseUrl: "",
+      apiKey: "secret"
+    });
+    expect(
+      new ProviderRegistry().get(resolved).buildRequest(INPUT, resolved).url
+    ).toBe("https://api.minimaxi.com/anthropic/v1/messages");
+  });
+
   it("builds an OpenAI chat completion request", () => {
     const request = new OpenAiProvider().buildRequest(INPUT, profile("openai"));
     expect(request.url).toBe("https://api.openai.com/v1/chat/completions");
@@ -40,24 +69,23 @@ describe("provider request adapters", () => {
   });
 
 
-  it("uses the official DeepSeek Anthropic transport without enabling web search", () => {
+  it("uses DeepSeek Chat Completions without web search", () => {
     const request = new DeepSeekProvider().buildRequest(
       { ...INPUT, model: "deepseek-v4-flash" },
       profile("deepseek")
     );
-    expect(request.url).toBe("https://api.deepseek.com/anthropic/v1/messages");
-    expect(request.responseFormat).toBe("anthropic");
+    expect(request.url).toBe("https://api.deepseek.com/chat/completions");
+    expect(request.responseFormat).toBe("openai");
     expect(request.body).toMatchObject({
       model: "deepseek-v4-flash",
-      stream: true,
-      system: "Be precise"
+      stream: true
     });
     expect(request.body).not.toHaveProperty("tools");
     expect(request.body).not.toHaveProperty("tool_choice");
     expect(request.body).not.toHaveProperty("prompt_cache_key");
   });
 
-  it("keeps the official DeepSeek Anthropic transport after web search is disabled", () => {
+  it("uses Anthropic only while DeepSeek native web search is enabled", () => {
     const provider = new DeepSeekProvider();
     const deepseekProfile = profile("deepseek");
     deepseekProfile.baseUrl = "https://api.deepseek.com/anthropic";
@@ -72,8 +100,8 @@ describe("provider request adapters", () => {
     );
 
     expect(online.url).toBe("https://api.deepseek.com/anthropic/v1/messages");
-    expect(offline.url).toBe("https://api.deepseek.com/anthropic/v1/messages");
-    expect(offline.responseFormat).toBe("anthropic");
+    expect(offline.url).toBe("https://api.deepseek.com/chat/completions");
+    expect(offline.responseFormat).toBe("openai");
     expect(offline.body).not.toHaveProperty("tools");
     expect(offline.body).not.toHaveProperty("tool_choice");
   });
@@ -92,7 +120,7 @@ describe("provider request adapters", () => {
         { ...INPUT, model: "deepseek-v4-flash", webSearchEnabled: false },
         current
       );
-      expect(request.url).toBe("https://api.deepseek.com/anthropic/v1/messages");
+      expect(request.url).toBe("https://api.deepseek.com/chat/completions");
     }
   });
 

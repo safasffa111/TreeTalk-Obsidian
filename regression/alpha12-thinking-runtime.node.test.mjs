@@ -130,7 +130,7 @@ void test("Legacy applies the shared mode and retries a length-only thinking res
   const { DeepSeekProvider } = load("src/providers/deepseek-provider.js");
   const adapter = new DeepSeekProvider();
   const requests = [];
-  const responses = [anthropicText("", "max_tokens"), anthropicText("最终回答")];
+  const responses = [piOpenAi("", "length"), piOpenAi("最终回答")];
   const engine = new LegacyExecutionEngine({
     resolveAdapter: () => adapter,
     stream: async function* () {},

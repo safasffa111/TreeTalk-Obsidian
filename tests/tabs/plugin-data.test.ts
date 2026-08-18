@@ -14,8 +14,8 @@ describe("TreeTalk plugin data", () => {
     });
     expect(data.settings).toMatchObject({
       executionMode: "pi",
-      provider: "deepseek",
-      model: "deepseek-v4-flash",
+      provider: "anthropic",
+      model: "claude-test",
       baseUrl: "https://example.test",
       treeWidth: 280,
       knowledgeFolder: "TreeTalk 知识",
@@ -83,7 +83,21 @@ describe("TreeTalk plugin data", () => {
     expect(full.settings.contextOptimizationEnabled).toBe(false);
   });
 
-  it("migrates legacy DeepSeek model names and preserves the web-search toggle", () => {
+  it("parses provider profiles and defaults missing profiles to empty state", () => {
+    const data = parsePluginData({ settings: { ...DEFAULT_SETTINGS } });
+    expect(data.settings.providerProfiles).toEqual({ activeProfileId: null, profiles: [] });
+    const withProfiles = parsePluginData({ settings: {
+      ...DEFAULT_SETTINGS,
+      providerProfiles: {
+        activeProfileId: "two",
+        profiles: [{ id: "one", label: "One", provider: "deepseek", model: "a", baseUrl: "" }, { id: "two", label: "Two", provider: "minimax", model: "b", baseUrl: "" }]
+      }
+    }});
+    expect(withProfiles.settings.providerProfiles?.profiles).toHaveLength(2);
+    expect(withProfiles.settings.providerProfiles?.activeProfileId).toBe("two");
+  });
+
+  it("preserves a configured DeepSeek model and the web-search toggle", () => {
     const data = parsePluginData({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -93,8 +107,22 @@ describe("TreeTalk plugin data", () => {
       }
     });
 
-    expect(data.settings.model).toBe("deepseek-v4-flash");
+    expect(data.settings.provider).toBe("deepseek");
+    expect(data.settings.model).toBe("deepseek-reasoner");
     expect(data.settings.webSearchEnabled).toBe(true);
+  });
+
+  it("resolves a provider alias to its canonical key", () => {
+    const data = parsePluginData({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        provider: "glm",
+        model: "glm-4.6"
+      }
+    });
+
+    expect(data.settings.provider).toBe("zhipu");
+    expect(data.settings.model).toBe("glm-4.6");
   });
 
   it("recovers from corrupt workspace data without discarding settings", () => {
@@ -114,7 +142,8 @@ describe("TreeTalk plugin data", () => {
       }
     });
 
-    expect(data.settings.model).toBe("deepseek-v4-flash");
+    expect(data.settings.provider).toBe("openai");
+    expect(data.settings.model).toBe("gpt-test");
     expect(data.tabs.openConversationIds).toEqual([]);
   });
 });

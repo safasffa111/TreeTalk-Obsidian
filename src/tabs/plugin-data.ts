@@ -1,12 +1,16 @@
 import type { ContextMode } from "../domain/context-engine";
 import type { ExecutionMode } from "../execution/types";
 import type { AnswerThinkingMode } from "../execution/answer-thinking";
-import type { ProviderKind } from "../providers/types";
+import {
+  getProviderPreset,
+  normalizeProviderKey
+} from "../providers/presets";
 import {
   parseTabsWorkspaceData,
   type TabsWorkspaceData
 } from "./workspace-state";
 import { logWarning } from "../utils/error-log";
+import { parseProviderProfiles, type ProviderProfilesState } from "../providers/provider-profiles";
 
 export type NoteContextTokenBudget = "minimal" | "full" | number;
 export type CompressedNoteTokenBudget = Exclude<NoteContextTokenBudget, "full">;
@@ -23,9 +27,11 @@ export interface DepositGraphWindowState {
 
 export interface TreeTalkSettings {
   executionMode: ExecutionMode;
-  provider: ProviderKind;
+  /** Provider preset key (see providers/presets). Free-form to allow custom endpoints. */
+  provider: string;
   model: string;
   baseUrl: string;
+  providerProfiles?: ProviderProfilesState;
   treeWidth: number;
   knowledgeFolder: string;
   treeCaptureFolder: string;
@@ -54,6 +60,7 @@ export const DEFAULT_SETTINGS: TreeTalkSettings = {
   provider: "deepseek",
   model: "deepseek-v4-flash",
   baseUrl: "",
+  providerProfiles: { activeProfileId: null, profiles: [] },
   treeWidth: 220,
   knowledgeFolder: "TreeTalk 知识",
   treeCaptureFolder: "TreeTalk",
@@ -90,31 +97,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function normalizeConfiguredModel(
-  provider: ProviderKind,
+  provider: string,
   model: string
 ): string {
   const trimmed = model.trim();
-  if (provider === "deepseek") {
-    if (
-      trimmed === "deepseek-chat" ||
-      trimmed === "deepseek-reasoner" ||
-      !trimmed.startsWith("deepseek-")
-    ) {
-      return "deepseek-v4-flash";
-    }
-    return trimmed;
-  }
-  return trimmed.length > 0 ? trimmed : DEFAULT_SETTINGS.model;
+  if (trimmed.length > 0) return trimmed;
+  const preset = getProviderPreset(provider);
+  return preset?.defaultModel !== undefined && preset.defaultModel.length > 0
+    ? preset.defaultModel
+    : DEFAULT_SETTINGS.model;
 }
 
 export function normalizeTreeTalkSettings(
   settings: TreeTalkSettings
 ): TreeTalkSettings {
+  const provider = normalizeProviderKey(settings.provider);
   return {
     ...settings,
     executionMode: "pi",
-    provider: "deepseek",
-    model: normalizeConfiguredModel("deepseek", settings.model),
+    provider,
+    model: normalizeConfiguredModel(provider, settings.model),
     contextOptimizationEnabled: false,
     contextMode: "full",
     answerThinkingMode:
@@ -170,13 +172,19 @@ function parseRelatedNoteDepth(
   return positiveInteger(value) ?? fallback;
 }
 
+function parseStoredProviderProfiles(value: unknown): ProviderProfilesState {
+  return parseProviderProfiles(value);
+}
+
 function parseSettings(value: unknown): TreeTalkSettings {
   if (!isRecord(value)) return normalizeTreeTalkSettings({ ...DEFAULT_SETTINGS });
   const contextOptimizationEnabled =
     typeof value.contextOptimizationEnabled === "boolean"
       ? value.contextOptimizationEnabled
       : DEFAULT_SETTINGS.contextOptimizationEnabled;
-  const provider: ProviderKind = "deepseek";
+  const provider = normalizeProviderKey(
+    typeof value.provider === "string" ? value.provider : DEFAULT_SETTINGS.provider
+  );
   const model = normalizeConfiguredModel(
     provider,
     typeof value.model === "string" ? value.model : DEFAULT_SETTINGS.model
@@ -196,6 +204,7 @@ function parseSettings(value: unknown): TreeTalkSettings {
           value.noteContextTokenBudget,
           lastCompressedNoteTokenBudget
         );
+  const providerProfiles = parseStoredProviderProfiles(value.providerProfiles);
   return normalizeTreeTalkSettings({
     executionMode:
       value.executionMode === "legacy" || value.executionMode === "pi"
@@ -207,6 +216,7 @@ function parseSettings(value: unknown): TreeTalkSettings {
       typeof value.baseUrl === "string"
         ? value.baseUrl
         : DEFAULT_SETTINGS.baseUrl,
+    providerProfiles,
     treeWidth:
       typeof value.treeWidth === "number" &&
       Number.isFinite(value.treeWidth) &&

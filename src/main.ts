@@ -62,6 +62,13 @@ import type { ExecutionMode, ExecutionRequest } from "./execution/types";
 import { ActiveResponseRequests } from "./providers/active-response-requests";
 import type { ActiveResponseHandle } from "./providers/active-response-requests";
 import { ProviderRegistry } from "./providers/provider-registry";
+import { resolveProfile } from "./providers/presets";
+import { effectiveStreamingOutputEnabled } from "./providers/provider-network-policy";
+import {
+  migrateLegacyProviderProfile,
+  profileSecretId,
+  resolveActiveProfile
+} from "./providers/provider-profiles";
 import { NodeSummaryCoordinator } from "./providers/node-summary-coordinator";
 import { StreamingProviderTransport } from "./providers/streaming-transport";
 import type { ProviderProfile } from "./providers/types";
@@ -123,8 +130,6 @@ export const COMMAND_IDS = {
   toggleBranch: "toggle-current-branch",
   depositGraph: "open-deposit-relationship-graph"
 } as const;
-
-const SECRET_ID = "treetalk-api-key";
 
 function sourceSection(
   sources: Array<{ title: string; url: string }>
@@ -198,7 +203,7 @@ export default class TreeTalkPlugin extends Plugin {
     },
     {
       getProfile: () => this.currentProviderProfile(),
-      getModel: () => this.pluginSettings.model,
+      getModel: () => this.activeProfileConfig().model,
       now: () => new Date().toISOString(),
       persistPending: async (tabId) => {
         const tab = this.tabsStore.getTab(tabId);
@@ -329,6 +334,19 @@ export default class TreeTalkPlugin extends Plugin {
     });
     this.pluginData = parsePluginData(await this.loadData());
     this.pluginSettings = this.pluginData.settings;
+    const migratedProfiles = await migrateLegacyProviderProfile(
+      this.pluginSettings,
+      {
+        getSecret: (id) => this.app.secretStorage.getSecret(id),
+        setSecret: (id, value) => this.app.secretStorage.setSecret(id, value),
+        listSecrets: () => this.app.secretStorage.listSecrets()
+      }
+    );
+    if (this.pluginSettings.providerProfiles?.profiles.length !== migratedProfiles.profiles.length) {
+      this.pluginSettings = normalizeTreeTalkSettings({ ...this.pluginSettings, providerProfiles: migratedProfiles });
+      this.pluginData = { ...this.pluginData, settings: this.pluginSettings };
+      await this.persistPluginData();
+    }
     const runtime = createPrivateStorageRuntime(this.app.vault);
     const vaultPort = runtime.port;
     this.roots = runtime.roots;
@@ -573,13 +591,26 @@ export default class TreeTalkPlugin extends Plugin {
   }
 
   getApiKey(): string {
-    return this.app.secretStorage.getSecret(SECRET_ID) ?? "";
+    return this.app.secretStorage.getSecret(profileSecretId(this.activeProfileConfig().id)) ?? "";
   }
 
   setApiKey(value: string): void {
     const apiKey = value.trim();
-    this.app.secretStorage.setSecret(SECRET_ID, apiKey);
+    this.app.secretStorage.setSecret(profileSecretId(this.activeProfileConfig().id), apiKey);
     if (apiKey.length > 0) void this.nodeSummaries.repairOpenTabs();
+  }
+
+  clearProfileSecret(profileId: string): void {
+    // Settings tab calls this when a profile is deleted. We deliberately
+    // tolerate "no such secret" because SecretStorage in current Obsidian
+    // has no removeSecret() — clearing the value to "" is the documented
+    // way to wipe a slot without leaving an orphan behind.
+    try {
+      this.app.secretStorage.setSecret(profileSecretId(profileId), "");
+    } catch {
+      // Swallow: a stale secret is safe — main.ts only reads the active
+      // profile's secret, and the deleted profile can never be active again.
+    }
   }
 
   private activeMarkdownSelectionSource():
@@ -778,14 +809,25 @@ export default class TreeTalkPlugin extends Plugin {
     }
   }
 
-  private currentProviderProfile(): ProviderProfile {
-    return {
-      id: "default",
-      name: "默认",
-      kind: "deepseek",
-      apiKey: this.getApiKey(),
+  private activeProfileConfig() {
+    const legacy = {
+      id: "legacy-fallback",
+      label: "默认",
+      provider: this.pluginSettings.provider,
+      model: this.pluginSettings.model,
       baseUrl: this.pluginSettings.baseUrl
     };
+    return resolveActiveProfile(this.pluginSettings.providerProfiles, legacy);
+  }
+
+  private currentProviderProfile(): ProviderProfile {
+    const profile = this.activeProfileConfig();
+    return resolveProfile({
+      provider: profile.provider,
+      model: profile.model,
+      baseUrl: profile.baseUrl,
+      apiKey: this.getApiKey()
+    });
   }
 
   private toggleActiveBranch(): void {
@@ -987,8 +1029,9 @@ export default class TreeTalkPlugin extends Plugin {
       contextPlan
     );
     const messageId = crypto.randomUUID();
+    const activeProfile = this.activeProfileConfig();
     const webSearchEnabled =
-      this.pluginSettings.provider === "deepseek" &&
+      activeProfile.provider === "deepseek" &&
       this.pluginSettings.webSearchEnabled;
     const request: ExecutionRequest = {
       conversationId: ticket.conversationId,
@@ -1022,10 +1065,13 @@ export default class TreeTalkPlugin extends Plugin {
       route: {
         routeId: "default",
         providerProfile: profile,
-        modelId: this.pluginSettings.model
+        modelId: activeProfile.model
       },
       webSearchEnabled,
-      streamingOutputEnabled: this.pluginSettings.streamingOutputEnabled,
+      streamingOutputEnabled: resolveExecutionRequestStreaming(
+        this.pluginSettings.streamingOutputEnabled,
+        profile
+      ),
       currentQuestion: text,
       answerThinkingMode: requestedAnswerThinkingMode,
       selectionCount: selectedQuotes.length,
@@ -1617,4 +1663,20 @@ export default class TreeTalkPlugin extends Plugin {
       .then(() => this.saveData(this.pluginData));
     return this.dataSaveTail;
   }
+}
+
+/**
+ * Resolve the streaming flag for one execution request. The official MiniMax
+ * Anthropic endpoint (api.minimaxi.com/anthropic) does not return the
+ * `x-api-key` / `anthropic-version` headers in its CORS preflight, so the
+ * browser-side streaming fetch is rejected before the response is read; the
+ * Obsidian `requestUrl` (buffered) transport is the only path that survives.
+ * The helper is exported so the wiring can be unit-tested without spinning
+ * up the full plugin class.
+ */
+export function resolveExecutionRequestStreaming(
+  configured: boolean,
+  profile: ProviderProfile
+): boolean {
+  return effectiveStreamingOutputEnabled(configured, profile);
 }

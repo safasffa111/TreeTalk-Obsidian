@@ -80,8 +80,8 @@ void test("old settings normalize to the alpha.21 DeepSeek Pi full-context contr
     }
   });
   assert.equal(parsed.settings.executionMode, "pi");
-  assert.equal(parsed.settings.provider, "deepseek");
-  assert.equal(parsed.settings.model, "deepseek-v4-flash");
+  assert.equal(parsed.settings.provider, "openai");
+  assert.equal(parsed.settings.model, "gpt-5-mini");
   assert.equal(parsed.settings.baseUrl, "https://gateway.example/v1");
   assert.equal(parsed.settings.answerThinkingMode, "disabled");
   assert.equal(parsed.settings.contextOptimizationEnabled, false);
@@ -98,9 +98,10 @@ void test("explicit enabled thinking survives normalization while auto becomes d
   assert.equal(normalizeTreeTalkSettings({ ...DEFAULT_SETTINGS, answerThinkingMode: "auto" }).answerThinkingMode, "disabled");
 });
 
-void test("settings expose only DeepSeek API and binary thinking", () => {
+void test("settings expose the model API group and binary thinking", () => {
   const settings = fs.readFileSync(path.join(root, "src/settings-tab.ts"), "utf8");
-  assert.match(settings, /heading: "DeepSeek API"/u);
+  assert.match(settings, /heading: "模型 API"/u);
+  assert.match(settings, /key: "provider"/u);
   assert.doesNotMatch(settings, /\.setName\("执行引擎"\)/u);
   assert.doesNotMatch(settings, /\.setName\("服务类型"\)/u);
   assert.doesNotMatch(settings, /\.setName\("平衡模式"\)/u);
@@ -119,9 +120,9 @@ void test("composer removes engine switching and toggles thinking only on or off
   assert.doesNotMatch(view, /思考模式：自动/u);
 });
 
-void test("normal send path is fixed to Pi and DeepSeek full note bodies", () => {
+void test("normal send path is fixed to Pi and full note bodies", () => {
   const main = fs.readFileSync(path.join(root, "src/main.ts"), "utf8");
-  assert.match(main, /kind:\s*"deepseek"/u);
+  assert.match(main, /resolveProfile\(\{/u);
   assert.match(main, /const executionMode\s*=\s*"pi"/u);
   assert.match(main, /fullNoteContext:\s*true/u);
   assert.match(main, /perNoteBudget:\s*"full"/u);

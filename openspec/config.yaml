@@ -1,0 +1,17 @@
+schema: spec-driven
+
+context: |
+  TreeTalk 是一个 Obsidian 插件（TypeScript，esbuild 打包，Vitest + node:test）。
+  分层：src/domain（纯领域逻辑）、src/storage、src/providers、src/agent/pi、src/views、src/knowledge、src/tabs。
+  硬约束：
+  - 领域层不得 import obsidian；通过 Port 接口注入。
+  - 会话数据写入 .obsidian/treetalk-data/{active,history}/<id>/tree.json，写入走 checksum 校验 + tmp 文件。
+  - 修改后必须通过 npm run check（vitest + tsc + eslint + build + regression）。
+  - 遵循 conventional commits。
+
+rules:
+  proposal:
+    - Keep proposals under 500 words
+    - Always include a "Non-goals" section
+  tasks:
+    - Break tasks into chunks of max 2 hours

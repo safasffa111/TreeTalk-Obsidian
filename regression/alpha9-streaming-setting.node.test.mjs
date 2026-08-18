@@ -38,10 +38,30 @@ test("streaming output defaults on and explicit false survives parsing", () => {
 
 test("settings UI and execution request expose the streaming switch", () => {
   const main = fs.readFileSync(path.join(root, "src/main.ts"), "utf8");
+  const policy = fs.readFileSync(path.join(root, "src/providers/provider-network-policy.ts"), "utf8");
   const settings = fs.readFileSync(path.join(root, "src/settings-tab.ts"), "utf8");
   const types = fs.readFileSync(path.join(root, "src/execution/types.ts"), "utf8");
   assert.match(settings, /name: "流式输出"/u);
-  assert.match(settings, /开启后回答会边生成边显示；关闭后等待完整回答后一次性显示。/u);
-  assert.match(main, /streamingOutputEnabled:\s*this\.pluginSettings\.streamingOutputEnabled/u);
+  // The MiniMax CORS workaround is documented next to the toggle so the
+  // user is not surprised when MiniMax answers stop streaming. The notice
+  // is concatenated across string literals, so we check the disjoint parts.
+  assert.match(
+    settings,
+    /MiniMax 官方 Anthropic 端点（api\.minimaxi\.com\/anthropic）/u
+  );
+  assert.match(
+    settings,
+    /因 Obsidian CORS 限制会自动改用非流式 buffered 模式回答/u
+  );
+  // The execution request no longer forwards the raw toggle; it resolves
+  // the effective value through the network policy so the MiniMax official
+  // Anthropic endpoint falls back to buffered transport automatically.
+  assert.match(
+    main,
+    /resolveExecutionRequestStreaming\(\s*this\.pluginSettings\.streamingOutputEnabled/u
+  );
+  assert.match(main, /resolveExecutionRequestStreaming/u);
+  assert.match(policy, /MINIMAX_OFFICIAL_HOST\s*=\s*"api\.minimaxi\.com"/u);
+  assert.match(policy, /\/anthropic/u);
   assert.match(types, /streamingOutputEnabled\?:\s*boolean/u);
 });

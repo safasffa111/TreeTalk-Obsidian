@@ -256,6 +256,20 @@ function anthropicRequest(input: PiProviderTurnInput): ProviderRequest {
       stream: input.stream === true,
       system: input.systemPrompt,
       messages: anthropicMessages(input.messages),
+      ...(input.thinkingEnabled === undefined
+        ? {}
+        : {
+            thinking: {
+              type:
+                input.profile.baseUrl.includes("api.minimaxi.com")
+                  ? input.thinkingEnabled
+                    ? "adaptive"
+                    : "disabled"
+                  : input.thinkingEnabled
+                    ? "enabled"
+                    : "disabled"
+            }
+          }),
       ...(input.tools.length === 0
         ? {}
         : {

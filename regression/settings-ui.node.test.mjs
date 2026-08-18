@@ -99,11 +99,11 @@ test("settings and composer expose one synchronized web-search state", () => {
   const settingsSource = fs.readFileSync(path.join(root, "src/settings-tab.ts"), "utf8");
   const viewSource = fs.readFileSync(path.join(root, "src/views/conversation-view.ts"), "utf8");
   assert.match(settingsSource, /name: "联网模式"/u);
-  assert.match(settingsSource, /开启后，DeepSeek 会根据问题自动判断是否需要搜索网页。当前仅支持 DeepSeek。/u);
+  assert.match(settingsSource, /DeepSeek 会根据问题自动判断是否需要搜索网页。仅 DeepSeek 支持。/u);
   assert.match(viewSource, /treetalk-web-search-toggle/u);
   assert.match(viewSource, /aria-pressed/u);
   assert.match(viewSource, /subscribe/u);
   assert.match(mainSource, /subscribeWebSearch\(listener/u);
   assert.match(settingsSource, /unsubscribeWebSearch/u);
-  assert.match(settingsSource, /provider !== "deepseek"/u);
+  assert.match(settingsSource, /supportsWebSearch !== true/u);
 });
