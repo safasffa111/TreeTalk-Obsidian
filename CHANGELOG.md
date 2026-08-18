@@ -1,5 +1,40 @@
 # TreeTalk Changelog
 
+## Unreleased: 显式文件锚定
+
+- 新增右键菜单「锚定 TreeTalk 对话到此笔记」（编辑器正文与文件管理器均可），
+  在发送首条消息时把锚点与消息在同一次原子操作中写入对话；锚点仅接受 `.md`，
+  且只在对话尚无用户消息时确定一次，之后不再变更。
+- 收紧既有锚点写入逻辑：修复此前任意后续消息都可能补写锚点、且不筛非 Markdown
+  文件的问题。
+- 对话树沉淀目录跟随锚点：默认保存在 `<锚点文件同级目录>/<锚点文件名>-tree/`，
+  未锚定的对话回退到设置的 `TreeTalk/`。
+
+## Unreleased: Vault 感知的文件锚点与沉淀路由
+
+- 为每个 Vault 引入独立持久身份：`VaultIdentityStore` 在
+  `<Vault>/.obsidian/treetalk-vault-id.json` 写入 UUID，不在插件目录或会话数据
+  目录中。复制 `data.json` / 插件目录 / `treetalk-data` 不会复制身份，避免
+  外来数据被误认为当前 Vault。
+- 锚点三元组（`anchorVaultId` + `anchorFilePath` + `anchorFileCtime`）随首条
+  用户消息在同一次原子 tree command 中写入，仅增加一次 revision；后续消息
+  不得补写、覆盖或清除任一字段。仅有路径的旧会话仍可读取，但被识别为
+  `legacy-unverified`，需右键目标笔记重新绑定才能继续沉淀。
+- 启动时和沉淀前对 verified 锚点执行安全重定位：当前路径解析失败且同 Vault
+  内仅有唯一 ctime 候选时，原子更新路径并 bump revision；零候选视为 missing，
+  多候选视为 ambiguous。
+- 注册 Obsidian Vault `rename` 事件：`AnchorRenamer` 串行处理 pending 锚点、
+  已打开会话和未打开 active/history 会话，单会话错误隔离；已打开会话在 store
+  持久化扫描中跳过，避免双写。
+- 文件右键菜单：当前 Vault 中 verified 锚点保持冻结（菜单项置灰）；legacy /
+  foreign / missing / ambiguous 锚点提供「重新绑定当前 TreeTalk 对话到此笔记」，
+  一次 revision 写入完整三元组。
+- 沉淀前 `KnowledgeCaptureService` 调用锚点状态预检：失败时抛
+  `AnchorCaptureError` 并保证零写入；`main.ts` 把 `code` 映射到本地化 Notice，
+  提示用户在目标笔记右键重新绑定。
+- 锚定会话的沉淀目录统一使用最新 verified 路径同级 `<锚点文件名>-tree/`，多
+  个会话或目录预存在场景保持确定性归组。
+
 ## 0.9.5: Optimization release
 
 - Coalesce canonical streaming text updates at 100 ms so long answers avoid

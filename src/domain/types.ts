@@ -234,6 +234,22 @@ export interface ConversationFile {
   rootNodeId: string;
   currentNodeId: string;
   nodes: Record<string, ConversationNode>;
+  /**
+   * 诉求1 + Vault-aware 锚点: 对话锁定时打开的 md 笔记路径 (发送首条消息时记录).
+   * 沉淀目录会基于此路径创建 `<笔记名>-tree/` 同级目录.
+   * 旧对话仅有此字段 → `legacy-unverified`，不可回退为当前 Vault 归属。
+   */
+  anchorFilePath?: string;
+  /**
+   * 已验证锚点的来源 Vault UUID。三个字段 (`anchorVaultId` + `anchorFilePath`
+   * + `anchorFileCtime`) 齐全时为 `verified`；否则视为未验证。
+   */
+  anchorVaultId?: string;
+  /**
+   * 已验证锚点对应文件的 Vault 内创建时间戳（毫秒，Unix epoch）。
+   * 正文修改不改变该值；rename/move 也不应改变该值，除非外部工具重建了文件。
+   */
+  anchorFileCtime?: number;
   contextArtifacts?: ConversationContextArtifacts;
   depositGraphState?: DepositGraphState;
   ui: ConversationUiState;

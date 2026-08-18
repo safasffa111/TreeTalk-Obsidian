@@ -16,6 +16,8 @@ import {
   isNoteSelectionContext
 } from "../domain/types";
 import type { VaultPort } from "../storage/conversation-repository";
+import type { AnchorStatus } from "../domain/anchor-status";
+import { isVaultRelativeMarkdownPath } from "../domain/anchor-path";
 import {
   insertMarkdownLinks,
   markdownWikiLink,
@@ -32,6 +34,57 @@ export type KnowledgeCaptureRequest =
       nodeId: string;
       messageId: string;
     };
+
+export type AnchorCaptureErrorCode =
+  | "anchor-foreign-vault"
+  | "anchor-legacy-unverified"
+  | "anchor-missing"
+  | "anchor-ambiguous";
+
+/**
+ * 沉淀前锚点状态失败时抛出的领域错误。
+ * 携带 `code` 供主插件映射为中文 Notice。
+ */
+export class AnchorCaptureError extends Error {
+  constructor(
+    public readonly code: AnchorCaptureErrorCode,
+    message: string
+  ) {
+    super(message);
+    this.name = "AnchorCaptureError";
+  }
+}
+
+/**
+ * 将领域错误映射为面向用户的 Notice 文案。
+ * 纯函数，无 obsidian 依赖，便于 TDD。
+ * 非 `AnchorCaptureError` 一律落到通用沉淀失败文案。
+ */
+export function mapAnchorCaptureErrorToNotice(error: unknown): string {
+  if (error instanceof AnchorCaptureError) {
+    switch (error.code) {
+      case "anchor-foreign-vault":
+        return "会话锚定文件不在当前 Vault，请右键目标笔记重新绑定";
+      case "anchor-legacy-unverified":
+        return "当前锚点为旧数据未验证，请在笔记上右键重新绑定后再沉淀";
+      case "anchor-missing":
+        return "锚定文件不存在或已删除，请右键目标笔记重新绑定";
+      case "anchor-ambiguous":
+        return "当前 Vault 中存在多个同 ctime 的候选文件，请右键目标笔记重新绑定";
+      default:
+        return error.message;
+    }
+  }
+  return "知识沉淀失败，对话内容未受影响";
+}
+
+/**
+ * 解析会话锚点状态的回调。
+ * 沉淀前 preflight 调用，仅允许 `none` 或 `verified`。
+ */
+export type AnchorStatusResolver = (
+  conversation: ConversationFile
+) => AnchorStatus;
 
 interface ExportNodeNote {
   nodeId: string;
@@ -167,12 +220,33 @@ async function buildTreeExportPlan(
   conversation: ConversationFile,
   capturedAt: string,
   treeFolder: string,
-  includedNodeIds: Set<string>
+  includedNodeIds: Set<string>,
+  resolvedAnchorPath: string | undefined
 ): Promise<TreeExportPlan> {
   const conversationStem = safeFileStem(conversation.title);
+  // 诉求1: 如果对话有锚点(发送首条消息时打开的 md 笔记),
+  // 在该笔记同级目录建 `<笔记名>-tree/`, 避免污染 TreeTalk 设置目录;
+  // 旧对话无锚点时回退到 treeFolder (与上游默认行为一致).
+  //
+  // Vault-aware: 归组根目录使用最新解析的 verified 路径。
+  // 多个会话锚定同一文件时必然共享同一根目录；
+  // 目录是否已存在不影响路径计算。
+  let parentFolder = treeFolder;
+  const anchorPath = resolvedAnchorPath ?? conversation.anchorFilePath;
+  if (anchorPath) {
+    // patch 7: 用纯字符串规范化, 避免跨平台 path 拼接差异
+    const normalized = anchorPath.replace(/\\/g, "/");
+    const lastSlash = normalized.lastIndexOf("/");
+    const anchorDir = lastSlash > 0 ? normalized.substring(0, lastSlash) : "";
+    const anchorName = lastSlash > 0 ? normalized.substring(lastSlash + 1) : normalized;
+    const anchorStem = anchorName.replace(/\.md$/i, "");
+    parentFolder = anchorDir
+      ? `${anchorDir}/${anchorStem}-tree`
+      : `${anchorStem}-tree`;
+  }
   const folder = await uniqueFolder(
     vault,
-    treeFolder,
+    parentFolder,
     `${timestampForFile(capturedAt)}-${conversationStem}`
   );
   const reserved = new Set<string>();
@@ -551,11 +625,66 @@ async function updateSourceNotes(
 }
 
 export class KnowledgeCaptureService {
+  private readonly anchorStatusResolver: AnchorStatusResolver | undefined;
+
   constructor(
     private readonly vault: VaultPort,
     private readonly knowledgeFolder: string,
-    private readonly treeCaptureFolder = knowledgeFolder
-  ) {}
+    private readonly treeCaptureFolder = knowledgeFolder,
+    options: { anchorStatusResolver?: AnchorStatusResolver } = {}
+  ) {
+    this.anchorStatusResolver = options.anchorStatusResolver;
+  }
+
+  /**
+   * 沉淀前对会话锚点做状态预检：
+   * - `none`：无锚点，按 `treeCaptureFolder` 旧行为沉淀。
+   * - `verified`：使用最新解析路径作为归组根目录的依据。
+   * - 其他状态（`foreign-vault` / `legacy-unverified` / `missing` / `ambiguous`）：
+   *   抛出 `AnchorCaptureError`，并保证零写入。
+   */
+  private preflightAnchor(
+    conversation: ConversationFile
+  ): { resolvedPath: string | undefined } {
+    if (this.anchorStatusResolver === undefined) {
+      return { resolvedPath: conversation.anchorFilePath };
+    }
+    const status = this.anchorStatusResolver(conversation);
+    if (status.kind === "none") {
+      return { resolvedPath: undefined };
+    }
+    if (status.kind === "verified") {
+      if (!isVaultRelativeMarkdownPath(status.filePath)) {
+        throw new AnchorCaptureError(
+          "anchor-missing",
+          "锚定文件路径不是当前 Vault 内的 Markdown 文件，已阻止本次沉淀"
+        );
+      }
+      return { resolvedPath: status.filePath };
+    }
+    if (status.kind === "foreign-vault") {
+      throw new AnchorCaptureError(
+        "anchor-foreign-vault",
+        "会话锚定文件不在当前 Vault，已阻止本次沉淀"
+      );
+    }
+    if (status.kind === "legacy-unverified") {
+      throw new AnchorCaptureError(
+        "anchor-legacy-unverified",
+        "锚点为旧数据未验证，请先在笔记上右键选择「重新绑定当前 TreeTalk 对话到此笔记」"
+      );
+    }
+    if (status.kind === "missing") {
+      throw new AnchorCaptureError(
+        "anchor-missing",
+        "锚定文件不存在或已删除，已阻止本次沉淀"
+      );
+    }
+    throw new AnchorCaptureError(
+      "anchor-ambiguous",
+      "当前 Vault 中存在多个同 ctime 的候选文件，无法自动选择，请右键目标笔记重新绑定"
+    );
+  }
 
   async capture(
     request: KnowledgeCaptureRequest,
@@ -565,6 +694,9 @@ export class KnowledgeCaptureService {
     if (scope !== "tree" && scope !== "answer") {
       throw new Error("Unsupported capture scope");
     }
+
+    // Every capture route must validate the anchor before it can write anything.
+    const { resolvedPath } = this.preflightAnchor(request.conversation);
 
     if (request.scope === "answer") {
       const node = requireNode(request.conversation, request.nodeId);
@@ -597,7 +729,8 @@ export class KnowledgeCaptureService {
       request.conversation,
       capturedAt,
       this.treeCaptureFolder,
-      projection.includedNodeIds
+      projection.includedNodeIds,
+      resolvedPath
     );
     const {
       messageGroups,

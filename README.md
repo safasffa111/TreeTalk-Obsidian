@@ -120,14 +120,22 @@ TreeTalk 是一款可追溯、可分叉、可沉淀的 Obsidian AI 研究工具�
 └── history/
 ```
 
+Vault 身份（用于锚点校验）独立保存在：
+
+```text
+<Vault>/.obsidian/treetalk-vault-id.json
+```
+
+该 marker **不**位于插件目录或会话数据目录中，因此单独复制 `data.json`、插件目录或 `treetalk-data` 不会复制 Vault 身份——外来数据回到原 Vault 时会被识别为 `anchor-foreign-vault` 并阻止在错误位置沉淀。Vault 根目录整体移动时 marker 跟随 Vault 一起移动，身份保持不变。
+
 这些内部数据不会显示在 Obsidian 文件列表、搜索结果或关系图谱中。
 
 只有主动沉淀的节点笔记、回答笔记以及拖入笔记的引用块会成为普通 Markdown。
 
 - 单条回答默认保存在 `TreeTalk 知识/`，可通过“知识沉淀文件夹”修改。
-- 对话树默认保存在 `TreeTalk/`，可通过“沉淀对话树目录”修改。
+- 对话树默认保存在 `<锚点文件同级目录>/<锚点文件名>-tree/`，未锚定的对话回退到 `TreeTalk/`，可通过“沉淀对话树目录”修改。
 
-每次沉淀都会创建独立的纯 Markdown 文件夹。目录页保存树状 WikiLink，节点笔记可自由编辑、移动、重命名和整理；TreeTalk 不会扫描或修复这些笔记。
+每次沉淀都会创建独立的纯 Markdown 文件夹。目录页保存树状 WikiLink，节点笔记可自由编辑、移动、重命名和整理；TreeTalk 会跟随 Obsidian 的 rename 事件把锚点和 pending 锚点一并更新；如果文件被外部移动且 Vault 唯一 ctime 候选仍存在，TreeTalk 会在启动或沉淀前自动恢复路径；否则需要右键目标笔记重新绑定。
 
 ## 命令面板
 
@@ -262,10 +270,13 @@ The quote block is plain Markdown and can be copied and moved freely. The source
 ## Data location
 
 - Active and archived conversations: `<Vault>/.obsidian/treetalk-data/` (`active/` and `history/`)
+- Vault identity marker (used for anchor verification): `<Vault>/.obsidian/treetalk-vault-id.json`. The marker lives **outside** the plugin folder and conversation data, so copying `data.json`, the plugin directory, or `treetalk-data` into another Vault never copies the identity — copied data is recognized as `anchor-foreign-vault` and cannot deposit into the wrong Vault. Moving the whole Vault root keeps the marker alongside it, so the identity survives.
 - Captured single answers: `TreeTalk 知识/` (configurable via "知识沉淀文件夹")
-- Captured conversation trees: `TreeTalk/` (configurable via "沉淀对话树目录")
+- Captured conversation trees: `<anchor file's sibling directory>/<anchor stem>-tree/` when an anchor is verified, falling back to `TreeTalk/` (configurable via "沉淀对话树目录") when there is no anchor.
 
 Internal data never appears in the file explorer, search results, or relationship graph. Only deliberately captured notes, answer notes, and dropped excerpt quote blocks become ordinary Markdown. TreeTalk does not scan or repair deposited notes.
+
+TreeTalk follows Obsidian's `rename` events to update both stored anchors and pending anchors. If a file is moved externally while the plugin is not running and the Vault still has a unique ctime candidate, the verified anchor is recovered automatically at startup or before capture; otherwise the anchor becomes `missing` and the user must right-click the target note to rebind. Verified anchors of the current Vault stay frozen — only `legacy-unverified`, `foreign-vault`, `missing`, and `ambiguous` anchors can be rebound from the file's right-click menu.
 
 ## Commands
 

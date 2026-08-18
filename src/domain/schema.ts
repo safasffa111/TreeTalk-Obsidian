@@ -1239,6 +1239,28 @@ export function parseConversation(value: unknown): ConversationFile {
     nodes,
     ui: parseUi(source.ui)
   };
+  // 诉求1 + Vault-aware: 解析锚点路径 (旧对话无此字段时跳过, 向后兼容)
+  if (source.anchorFilePath !== undefined) {
+    conversation.anchorFilePath = string(source.anchorFilePath, "anchorFilePath");
+  }
+  if (source.anchorVaultId !== undefined) {
+    const vaultId = string(source.anchorVaultId, "anchorVaultId");
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(
+        vaultId
+      )
+    ) {
+      throw new TypeError("anchorVaultId must be a UUID");
+    }
+    conversation.anchorVaultId = vaultId;
+  }
+  if (source.anchorFileCtime !== undefined) {
+    const ctime = integer(source.anchorFileCtime, "anchorFileCtime");
+    if (ctime < 0) {
+      throw new TypeError("anchorFileCtime must be non-negative");
+    }
+    conversation.anchorFileCtime = ctime;
+  }
   if (source.depositGraphState !== undefined) {
     conversation.depositGraphState = parseDepositGraphState(source.depositGraphState);
   }
