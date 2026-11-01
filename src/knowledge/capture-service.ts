@@ -15,11 +15,14 @@ import {
   isMessageSelectionContext,
   isNoteSelectionContext
 } from "../domain/types";
+import { logWarning } from "../utils/error-log";
 import type { VaultPort } from "../storage/conversation-repository";
 import {
+  appendMarkdownLinks,
   insertMarkdownLinks,
   markdownWikiLink,
   resolveMarkdownAnchor,
+  resolveNoteMarkdownAnchor,
   type MarkdownLink,
   type MarkdownLinkInsertion
 } from "./markdown-branch-links";
@@ -31,6 +34,8 @@ export type KnowledgeCaptureRequest =
       conversation: ConversationFile;
       nodeId: string;
       messageId: string;
+      /** Optional note name, also used for the Markdown file name. */
+      fileName?: string;
     };
 
 interface ExportNodeNote {
@@ -105,6 +110,23 @@ function nodeTitle(node: ConversationNode): string {
   const question = node.messages.find((message) => message.role === "user")
     ?.content.trim();
   return question !== undefined && question.length > 0 ? question : "未命名";
+}
+
+export function captureAnswerTitle(
+  conversation: ConversationFile,
+  nodeId: string
+): string {
+  return nodeTitle(requireNode(conversation, nodeId));
+}
+
+export function captureAnswerNoteTitle(
+  requested: string | undefined,
+  fallback: string
+): string {
+  const trimmed = requested?.trim();
+  if (trimmed === undefined || trimmed.length === 0) return fallback;
+  const withoutExtension = trimmed.replace(/\.md$/iu, "").trim();
+  return withoutExtension.length > 0 ? withoutExtension : fallback;
 }
 
 function hasStreamingResponse(conversation: ConversationFile): boolean {
@@ -496,19 +518,6 @@ function renderNodeMarkdown(
   return `${sections.join("\n\n")}\n`;
 }
 
-function appendCaptureLinks(content: string, links: MarkdownLink[]): string {
-  const missing = links.filter(
-    (link) => !content.includes(markdownWikiLink(link.path, link.title))
-  );
-  if (missing.length === 0) return content;
-  const heading = "## TreeTalk 沉淀";
-  const block = missing
-    .map((link) => `- ${markdownWikiLink(link.path, link.title)}`)
-    .join("\n");
-  const trimmed = content.replace(/\s+$/u, "");
-  return `${trimmed}\n\n${content.includes(heading) ? "" : `${heading}\n\n`}${block}\n`;
-}
-
 async function updateSourceNotes(
   vault: VaultPort,
   groups: NoteBranchGroup[]
@@ -531,7 +540,7 @@ async function updateSourceNotes(
           for (const link of entry.links) addUniqueLink(appendLinks, link);
           continue;
         }
-        const anchor = resolveMarkdownAnchor(original, entry.context);
+        const anchor = await resolveNoteMarkdownAnchor(original, entry.context);
         if (anchor !== undefined) {
           insertions.push({ anchor, links: entry.links });
         } else {
@@ -542,10 +551,11 @@ async function updateSourceNotes(
         insertions.length === 0
           ? original
           : insertMarkdownLinks(original, insertions);
-      updated = appendCaptureLinks(updated, appendLinks);
+      updated = appendMarkdownLinks(updated, appendLinks);
       if (updated !== original) await vault.write(path, updated);
-    } catch {
+    } catch (error) {
       // Source-note links are best-effort and never make the export fail.
+      logWarning(`写入来源笔记链接失败: ${path}`, error);
     }
   }
 }
@@ -573,7 +583,7 @@ export class KnowledgeCaptureService {
         throw new Error("Only assistant answers can be captured");
       }
       const folder = normalizeFolder(this.knowledgeFolder);
-      const title = nodeTitle(node);
+      const title = captureAnswerNoteTitle(request.fileName, nodeTitle(node));
       const stem = safeFileStem(title);
       let suffix = 1;
       let path = `${folder}/${stem}.md`;

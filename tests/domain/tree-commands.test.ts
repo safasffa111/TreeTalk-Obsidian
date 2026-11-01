@@ -5,6 +5,7 @@ import {
   prepareChildDraft,
   prepareSelectionChildDraft,
   removeSelectionFromDraft,
+  renameConversation,
   revertTreeCommand,
   submitChildDraft,
   toggleBranchDraft
@@ -78,6 +79,21 @@ describe("tree commands", () => {
     expect(requireNode(second.state, second.state.rootNodeId).title).toBe(
       "最初的问题"
     );
+  });
+
+  it("renames a conversation title without relabeling its root node", () => {
+    const before = validConversation();
+    const rootBefore = requireNode(before, before.rootNodeId);
+
+    const renamed = renameConversation(before, "  TCP 复习笔记  ", NOW);
+
+    expect(renamed.title).toBe("TCP 复习笔记");
+    expect(renamed.revision).toBe(before.revision + 1);
+    expect(renamed.updatedAt).toBe(NOW);
+    const root = requireNode(renamed, renamed.rootNodeId);
+    expect(root.title).toBe(rootBefore.title);
+    expect(root.titleSource).toBe("manual");
+    expect(() => renameConversation(before, "   ", NOW)).toThrow(/title/i);
   });
 
   it("names an empty conversation when its first question creates a child", () => {

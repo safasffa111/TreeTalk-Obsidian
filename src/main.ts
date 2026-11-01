@@ -25,6 +25,7 @@ import {
 } from "./domain/markdown-compatibility";
 import {
   continueNode,
+  renameConversation,
   submitChildDraft,
   toggleBranchDraft
 } from "./domain/tree-commands";
@@ -39,9 +40,19 @@ import { HistoryDeleteService } from "./history/history-delete-service";
 import { logWarning } from "./utils/error-log";
 import {
   confirmHistoryDeletion,
-  HistoryManagerModal
+  HistoryManagerModal,
+  promptHistoryRename
 } from "./history/history-manager-modal";
-import { KnowledgeCaptureService } from "./knowledge/capture-service";
+import {
+  captureAnswerNoteTitle,
+  captureAnswerTitle,
+  KnowledgeCaptureService
+} from "./knowledge/capture-service";
+import { promptCaptureFileName } from "./knowledge/capture-answer-modal";
+import {
+  findDocumentReference,
+  insertDocumentReference
+} from "./knowledge/reference-insertion";
 import { SourceHighlightStore } from "./navigation/source-highlight-store";
 import {
   conversationContainsSource,
@@ -1412,6 +1423,8 @@ export default class TreeTalkPlugin extends Plugin {
       entries,
       {
         open: (entry) => this.openHistoryEntry(entry).then(() => undefined),
+        askRename: (entry) => promptHistoryRename(this.app, entry),
+        rename: (entry, title) => this.renameHistoryEntry(entry, title),
         confirmDelete: (entry) =>
           confirmHistoryDeletion(this.app, entry),
         delete: (entry) => {
@@ -1424,10 +1437,71 @@ export default class TreeTalkPlugin extends Plugin {
           return this.lifecycleQueue.run(() => service.delete(entry));
         },
         reportError: () => {
-          new Notice("删除失败，历史对话仍已安全保留");
+          new Notice("操作失败，历史对话仍已安全保留");
         }
       }
     ).open();
+  }
+
+  private async renameHistoryEntry(
+    entry: HistoryEntry,
+    title: string
+  ): Promise<HistoryEntry[]> {
+    const index = this.historyIndex;
+    if (index === undefined) {
+      throw new Error("History renaming is unavailable");
+    }
+    const trimmed = title.trim();
+    if (trimmed.length === 0) {
+      throw new Error("History title cannot be empty");
+    }
+    if (trimmed === entry.title) return index.entries();
+    const now = new Date().toISOString();
+    return this.lifecycleQueue.run(async () => {
+      const openTab = Object.values(this.tabsStore.getSnapshot().tabs).find(
+        (candidate) => candidate.conversationId === entry.id
+      );
+      if (openTab !== undefined) {
+        if (openTab.lifecycle !== "idle") {
+          throw new Error("The conversation is busy");
+        }
+        const renamed = renameConversation(
+          openTab.conversation,
+          trimmed,
+          now
+        );
+        this.tabsStore.updateTab(openTab.id, (tab) => ({
+          ...tab,
+          title: renamed.title,
+          conversation: renamed
+        }));
+        if (renamed.status === "archived") {
+          index.upsert(openTab.folder, renamed);
+        } else {
+          index.remove(renamed.id);
+        }
+        return index.entries();
+      }
+
+      const repository = this.repository;
+      if (repository === undefined) {
+        throw new Error("History renaming is unavailable");
+      }
+      const loaded = await repository.load(entry.folder);
+      if (loaded.conversation.status !== "archived") {
+        index.remove(entry.id);
+        return index.entries();
+      }
+      const renamed = renameConversation(loaded.conversation, trimmed, now);
+      const saved = await repository.save(
+        entry.folder,
+        renamed,
+        loaded.conversation.revision
+      );
+      this.persistence?.seed(entry.folder, saved.revision);
+      index.upsert(entry.folder, saved);
+      return index.entries();
+    });
   }
 
   private async closeOpenHistory(conversationId: string): Promise<void> {
@@ -1574,28 +1648,77 @@ export default class TreeTalkPlugin extends Plugin {
       await this.nodeSummaries.waitForNode(tab.id, node.id);
       const conversation = this.tabsStore.getTab(tab.id)?.conversation;
       if (conversation === undefined) return;
-      await this.captureKnowledge({
-        scope: "answer",
-        conversation,
-        nodeId: node.id,
-        messageId
-      });
+      const defaultName = captureAnswerTitle(conversation, node.id);
+      const choice = await promptCaptureFileName(
+        this.app,
+        defaultName,
+        this.pluginSettings.knowledgeFolder
+      );
+      if (choice === undefined) return;
+      const path = await this.captureKnowledge(
+        {
+          scope: "answer",
+          conversation,
+          nodeId: node.id,
+          messageId,
+          fileName: choice.fileName
+        },
+        !choice.insertAtReference
+      );
+      if (!choice.insertAtReference || path === undefined) return;
+
+      const reference = findDocumentReference(conversation, node.id, messageId);
+      if (reference === undefined) {
+        new Notice(`已沉淀到 ${path}；未找到可插入的文档引用位置`);
+        return;
+      }
+      const vault = this.knowledgeVault;
+      if (vault === undefined) {
+        new Notice(`已沉淀到 ${path}；无法访问笔记库`);
+        return;
+      }
+      try {
+        const title = captureAnswerNoteTitle(choice.fileName, defaultName);
+        const status = await insertDocumentReference(vault, reference.note, {
+          path,
+          title
+        });
+        if (status === "inserted") {
+          new Notice(
+            `已沉淀到 ${path}，并插入引用到 ${reference.note.filePath}`
+          );
+        } else if (status === "appended") {
+          new Notice(
+            `已沉淀到 ${path}；未能精确定位引用位置，链接已追加到 ${reference.note.filePath} 末尾`
+          );
+        } else if (status === "unchanged") {
+          new Notice(`已沉淀到 ${path}；引用位置已存在该链接`);
+        } else {
+          new Notice(`已沉淀到 ${path}；来源笔记不存在或已移动`);
+        }
+      } catch (error) {
+        logWarning("插入沉淀回答引用失败", error);
+        new Notice(`已沉淀到 ${path}，但插入引用位置失败`);
+      }
       return;
     }
   }
 
   private async captureKnowledge(
-    request: Parameters<KnowledgeCaptureService["capture"]>[0]
-  ): Promise<void> {
+    request: Parameters<KnowledgeCaptureService["capture"]>[0],
+    notify = true
+  ): Promise<string | undefined> {
     try {
       const path = await this.captureService?.capture(
         request,
         new Date().toISOString()
       );
-      if (path !== undefined) new Notice(`已沉淀到 ${path}`);
+      if (path !== undefined && notify) new Notice(`已沉淀到 ${path}`);
+      return path;
     } catch (error) {
       logWarning("知识沉淀失败", error);
       new Notice("知识沉淀失败，对话内容未受影响");
+      return undefined;
     }
   }
 

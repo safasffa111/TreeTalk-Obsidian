@@ -39,6 +39,14 @@ function actions(
 ): HistoryManagerActions {
   return {
     open: vi.fn(() => Promise.resolve()),
+    askRename: vi.fn(() => Promise.resolve(undefined)),
+    rename: vi.fn((entry: HistoryEntry, title: string) =>
+      Promise.resolve(
+        entries.map((candidate) =>
+          candidate.id === entry.id ? { ...candidate, title } : candidate
+        )
+      )
+    ),
     confirmDelete: vi.fn(() => Promise.resolve(true)),
     delete: vi.fn((entry: HistoryEntry) =>
       Promise.resolve(entries.filter((candidate) => candidate.id !== entry.id))
@@ -98,7 +106,7 @@ describe("history manager", () => {
     expect(container.textContent).toContain("Stack overflow");
   });
 
-  it("reserves a dedicated grid column for the delete control", () => {
+  it("reserves dedicated grid columns for the rename and delete controls", () => {
     const container = document.createElement("div");
     renderHistoryManager(container, entries, actions());
     const row = container.querySelector<HTMLElement>(".treetalk-history-row");
@@ -107,7 +115,65 @@ describe("history manager", () => {
     const css = readFileSync("styles.css", "utf8");
     const rowRule = css.match(/\.treetalk-history-row\s*\{([^}]*)\}/su)?.[1];
     expect(rowRule).toContain("display: grid");
-    expect(rowRule).toContain("grid-template-columns: minmax(0, 1fr) 30px");
+    expect(rowRule).toContain(
+      "grid-template-columns: minmax(0, 1fr) 30px 30px"
+    );
+  });
+
+  it("renames a history conversation from its row", async () => {
+    const container = document.createElement("div");
+    const askRename = vi.fn(() => Promise.resolve("Renamed conversation"));
+    const rename = vi.fn((entry: HistoryEntry, title: string) =>
+      Promise.resolve(
+        entries.map((candidate) =>
+          candidate.id === entry.id ? { ...candidate, title } : candidate
+        )
+      )
+    );
+    renderHistoryManager(
+      container,
+      entries,
+      actions({ askRename, rename })
+    );
+
+    container
+      .querySelector<HTMLButtonElement>(
+        "[data-conversation-id='one'] .treetalk-history-rename"
+      )
+      ?.click();
+
+    await vi.waitFor(() =>
+      expect(container.textContent).toContain("Renamed conversation")
+    );
+    expect(askRename).toHaveBeenCalledWith(entries[0]);
+    expect(rename).toHaveBeenCalledWith(entries[0], "Renamed conversation");
+  });
+
+  it("keeps the history title when renaming is cancelled", async () => {
+    const container = document.createElement("div");
+    const askRename = vi.fn(() => Promise.resolve(undefined));
+    const rename = vi.fn((entry: HistoryEntry, title: string) =>
+      Promise.resolve(
+        entries.map((candidate) =>
+          candidate.id === entry.id ? { ...candidate, title } : candidate
+        )
+      )
+    );
+    renderHistoryManager(
+      container,
+      entries,
+      actions({ askRename, rename })
+    );
+
+    container
+      .querySelector<HTMLButtonElement>(
+        "[data-conversation-id='one'] .treetalk-history-rename"
+      )
+      ?.click();
+
+    await vi.waitFor(() => expect(askRename).toHaveBeenCalledOnce());
+    expect(rename).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("TCP reliability");
   });
 
   it("keeps the row when deletion is cancelled or storage fails", async () => {

@@ -4,9 +4,12 @@ import {
   type App
 } from "obsidian";
 import type { HistoryEntry } from "./history-index";
+import { promptForName } from "../views/name-input-modal";
 
 export interface HistoryManagerActions {
   open(entry: HistoryEntry): Promise<void>;
+  askRename(entry: HistoryEntry): Promise<string | undefined>;
+  rename(entry: HistoryEntry, title: string): Promise<HistoryEntry[]>;
   confirmDelete(entry: HistoryEntry): Promise<boolean>;
   delete(entry: HistoryEntry): Promise<HistoryEntry[]>;
   reportError(error: unknown): void;
@@ -50,6 +53,27 @@ export function renderHistoryManager(
       open.addEventListener("click", () => {
         void actions.open(entry);
       });
+      const rename = document.createElement("button");
+      rename.type = "button";
+      rename.className = "treetalk-history-rename";
+      rename.setAttribute("aria-label", `重命名历史对话 ${entry.title}`);
+      setIcon(rename, "pencil");
+      rename.addEventListener("click", (event) => {
+        event.stopPropagation();
+        void (async () => {
+          rename.disabled = true;
+          try {
+            const title = await actions.askRename(entry);
+            if (title === undefined) return;
+            entries = await actions.rename(entry, title);
+            renderRows();
+          } catch (error) {
+            actions.reportError(error);
+          } finally {
+            rename.disabled = false;
+          }
+        })();
+      });
       const remove = document.createElement("button");
       remove.type = "button";
       remove.className = "treetalk-history-delete";
@@ -69,7 +93,7 @@ export function renderHistoryManager(
           }
         })();
       });
-      row.append(open, remove);
+      row.append(open, rename, remove);
       list.append(row);
     }
     if (visible.length === 0) {
@@ -170,5 +194,21 @@ export function confirmHistoryDeletion(
 ): Promise<boolean> {
   return new Promise((resolve) => {
     new HistoryDeleteConfirmModal(app, entry, resolve).open();
+  });
+}
+
+export function promptHistoryRename(
+  app: App,
+  entry: HistoryEntry
+): Promise<string | undefined> {
+  return promptForName(app, {
+    title: "重命名历史对话",
+    description: `为「${entry.title}」设置新的对话名称。`,
+    label: "对话名称",
+    value: entry.title,
+    placeholder: entry.title,
+    confirmLabel: "重命名",
+    maxLength: 120,
+    validate: (value) => (value.trim().length === 0 ? "名称不能为空" : undefined)
   });
 }

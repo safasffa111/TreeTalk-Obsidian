@@ -217,6 +217,28 @@ export function toggleBranchDraft(
   return parseConversation(state);
 }
 
+export function renameConversation(
+  conversation: ConversationFile,
+  title: string,
+  now: string
+): ConversationFile {
+  const trimmed = title.trim();
+  if (trimmed.length === 0) {
+    throw new Error("Conversation title cannot be empty");
+  }
+  const state = mutableClone(conversation);
+  state.title = trimmed;
+  // The root node keeps its own label, but a manual conversation title must
+  // not be overwritten by a pending root-node summary.
+  const root = requiredNode(state, state.rootNodeId);
+  if (root.titleSource !== "manual") {
+    root.titleSource = "manual";
+    root.updatedAt = now;
+  }
+  nextRevision(state, now);
+  return parseConversation(state);
+}
+
 export function addSelectionToDraft(
   conversation: ConversationFile,
   nodeId: string,

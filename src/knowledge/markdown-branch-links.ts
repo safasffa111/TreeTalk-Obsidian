@@ -1,5 +1,11 @@
 import { parseStructuredMarkdown } from "../domain/balanced-markdown-compressor";
+import {
+  normalizeComparableMarkdown,
+  sha256Hex,
+  stripYamlFrontmatter
+} from "../domain/note-snapshot";
 import type {
+  NoteSelectionContext,
   SelectionAnchor,
   SelectionContext
 } from "../domain/types";
@@ -104,6 +110,56 @@ export function resolveMarkdownAnchor(
   return resolved.status === "resolved"
     ? { start: resolved.start, end: resolved.end }
     : undefined;
+}
+
+async function snapshotMarkdownAnchor(
+  content: string,
+  context: NoteSelectionContext
+): Promise<MarkdownAnchor | undefined> {
+  const snapshot = context.snapshot;
+  if (snapshot === undefined) return undefined;
+  const stripped = stripYamlFrontmatter(content);
+  if ((await sha256Hex(stripped.content)) !== snapshot.contentHash) {
+    return undefined;
+  }
+  const start = stripped.removedPrefixLength + snapshot.selectionStartOffset;
+  const end = stripped.removedPrefixLength + snapshot.selectionEndOffset;
+  if (
+    !Number.isInteger(start) ||
+    !Number.isInteger(end) ||
+    start < 0 ||
+    end > content.length ||
+    start >= end
+  ) {
+    return undefined;
+  }
+  const selected = stripped.content.slice(
+    snapshot.selectionStartOffset,
+    snapshot.selectionEndOffset
+  );
+  if (
+    normalizeComparableMarkdown(selected) !==
+    normalizeComparableMarkdown(context.quote)
+  ) {
+    return undefined;
+  }
+  return { start, end };
+}
+
+/**
+ * Resolves the insertion point in a source note. Rendered-reader selections
+ * store a source-position snapshot because their quote often omits Markdown
+ * syntax; prefer that snapshot when it still matches the note content.
+ */
+export async function resolveNoteMarkdownAnchor(
+  content: string,
+  context: NoteSelectionContext
+): Promise<MarkdownAnchor | undefined> {
+  const snapshotAnchor = await snapshotMarkdownAnchor(content, context);
+  if (context.basis === "note-rendered-text-v1" && snapshotAnchor !== undefined) {
+    return snapshotAnchor;
+  }
+  return resolveMarkdownAnchor(content, context) ?? snapshotAnchor;
 }
 
 function notePathWithoutExtension(path: string): string {
@@ -345,4 +401,20 @@ export function insertMarkdownLinks(
       ? insertStandalone(current, placement.offset, rendered)
       : insertInline(current, placement.offset, rendered);
   }, content);
+}
+
+export function appendMarkdownLinks(
+  content: string,
+  links: MarkdownLink[]
+): string {
+  const missing = links.filter(
+    (link) => !content.includes(markdownWikiLink(link.path, link.title))
+  );
+  if (missing.length === 0) return content;
+  const heading = "## TreeTalk 沉淀";
+  const block = missing
+    .map((link) => `- ${markdownWikiLink(link.path, link.title)}`)
+    .join("\n");
+  const trimmed = content.replace(/\s+$/u, "");
+  return `${trimmed}\n\n${content.includes(heading) ? "" : `${heading}\n\n`}${block}\n`;
 }

@@ -790,7 +790,7 @@ button.treetalk-selection-chip-remove:focus-visible {
 .treetalk-history-row {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr) 30px;
+  grid-template-columns: minmax(0, 1fr) 30px 30px;
   align-items: center;
   gap: 2px;
   border-radius: 6px;
@@ -816,11 +816,11 @@ button.treetalk-history-open {
   white-space: nowrap;
 }
 
+button.treetalk-history-rename,
 button.treetalk-history-delete {
   display: grid;
   width: 26px;
   height: 26px;
-  grid-column: 2;
   place-items: center;
   justify-self: center;
   margin: 0;
@@ -832,9 +832,24 @@ button.treetalk-history-delete {
   opacity: 0;
 }
 
+button.treetalk-history-rename {
+  grid-column: 2;
+}
+
+button.treetalk-history-delete {
+  grid-column: 3;
+}
+
+.treetalk-history-row:hover button.treetalk-history-rename,
 .treetalk-history-row:hover button.treetalk-history-delete,
+button.treetalk-history-rename:focus-visible,
 button.treetalk-history-delete:focus-visible {
   opacity: 1;
+}
+
+button.treetalk-history-rename:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
 }
 
 button.treetalk-history-delete:hover {
@@ -853,6 +868,50 @@ button.treetalk-history-delete:hover {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 18px;
+}
+
+.treetalk-name-description {
+  margin: 0 0 14px;
+  color: var(--text-muted);
+}
+
+.treetalk-name-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.treetalk-name-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.treetalk-name-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.treetalk-name-hint {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+.treetalk-name-error {
+  min-height: 1.2em;
+  margin: 0;
+  color: var(--text-error);
+  font-size: var(--font-ui-smaller);
+}
+
+.treetalk-name-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .treetalk-input-row {

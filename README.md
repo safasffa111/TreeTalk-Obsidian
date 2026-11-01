@@ -38,7 +38,7 @@ TreeTalk 是一款可追溯、可分叉、可沉淀的 Obsidian AI 研究工具�
 - 点击侧边栏图标打开 TreeTalk，输入问题并发送：继续当前节点。
 - 输入区右键切换到分支模式后发送：在当前节点下创建子节点。
 - 框选笔记或对话中的内容：加入上下文，再基于它提问。
-- 回答末尾点击“沉淀回答”：把答案保存为纯 Markdown 笔记。
+- 回答末尾点击“沉淀回答”：把答案保存为纯 Markdown 笔记；在文件名对话框选择“确定并插入”还会把笔记链接写回来源文档的框选位置。
 - 完整操作见下方“基本操作”。
 
 ## 基本操作
@@ -53,7 +53,7 @@ TreeTalk 是一款可追溯、可分叉、可沉淀的 Obsidian AI 研究工具�
 - 拖动框选原文或上下文条目到 Markdown 笔记：生成 TreeTalk 摘录。
 - 点击摘录中的“返回 TreeTalk 来源”：按活动对话、历史对话的顺序定位来源。
 - 点击原文留痕：进入使用该选段提问的节点。
-- 在完整 AI 回答末尾点击“沉淀回答”：创建纯 Markdown 回答笔记。
+- 在完整 AI 回答末尾点击“沉淀回答”：创建纯 Markdown 回答笔记；选择“确定并插入”会把回答笔记链接写回来源文档的框选位置，来源是历史聊天选段时会沿引用链递归找到原始文档位置。
 - 点击“沉淀对话树”：创建纯 Markdown 目录页和节点笔记；框选追问链接会保留在对应内容附近。
 - 点击生成按钮中的停止图标：保留当前内容并标记为中断。
 - 关闭活动对话空间：保存并归档。
@@ -187,7 +187,7 @@ The directory must contain `main.js`, `manifest.json`, and `styles.css`. Reload 
 - Click the sidebar icon to open TreeTalk, type a question, and send: the answer continues the current node.
 - Right-click inside the input area to switch to branch mode, then send: creates a child node under the current node.
 - Select text in a note or conversation to add it as context before asking.
-- Click "沉淀回答" (Capture answer) at the end of an answer to save it as a plain Markdown note.
+- Click "沉淀回答" (Capture answer) at the end of an answer to save it as a plain Markdown note. Choosing "确定并插入" also inserts a link back at the source note's selected position.
 - Click "沉淀对话树" (Capture tree) to save the whole conversation tree as Markdown.
 
 ## Usage
@@ -202,7 +202,7 @@ The directory must contain `main.js`, `manifest.json`, and `styles.css`. Reload 
 - Drag selected text or a context item into a Markdown note: creates a TreeTalk excerpt (see below).
 - Click "返回 TreeTalk 来源" in an excerpt: locates the source in the active conversation or history.
 - Click a source trace: jumps to the node that used that selection.
-- Click "沉淀回答" at the end of a complete answer: creates a plain Markdown answer note.
+- Click "沉淀回答" at the end of a complete answer: creates a plain Markdown answer note. "确定并插入" also inserts the note link at the source selection, following chat-selection chains back to the original note when necessary.
 - Click "沉淀对话树": creates a plain Markdown index page and node notes; selected follow-up links stay near their content.
 - Click the stop icon in the send button: keeps the current content and marks it as interrupted.
 - Close an active conversation space: saves and archives it.
