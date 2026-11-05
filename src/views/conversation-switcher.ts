@@ -1,9 +1,11 @@
+import { setIcon } from "obsidian";
 import type { ConversationTabsStore } from "../tabs/conversation-tabs-store";
 
 export interface ConversationSwitcherActions {
   create(): Promise<void> | void;
   close(conversationId: string): Promise<void> | void;
   reorder(conversationId: string, targetIndex: number): void;
+  rename?(conversationId: string): Promise<void> | void;
 }
 
 function switcherSignature(store: ConversationTabsStore): string {
@@ -87,6 +89,24 @@ export function renderConversationSwitcher(
       select.addEventListener("click", () => {
         store.select(tab.id);
       });
+      select.addEventListener("dblclick", (event) => {
+        event.preventDefault();
+        if (actions.rename === undefined) return;
+        void actions.rename(tab.id);
+      });
+
+      const rename = document.createElement("button");
+      rename.type = "button";
+      rename.className = "treetalk-space-rename";
+      rename.setAttribute("aria-label", `重命名 ${tab.title}`);
+      rename.title = "重命名对话";
+      setIcon(rename, "pencil");
+      rename.disabled = tab.lifecycle !== "idle" || actions.rename === undefined;
+      rename.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (actions.rename === undefined) return;
+        void actions.rename(tab.id);
+      });
 
       const close = document.createElement("button");
       close.type = "button";
@@ -116,7 +136,7 @@ export function renderConversationSwitcher(
       row.addEventListener("dragend", () => {
         draggedConversationId = undefined;
       });
-      row.append(select, close);
+      row.append(select, rename, close);
       list.append(row);
     }
     const create = document.createElement("button");

@@ -27,6 +27,8 @@ export interface TreeTalkSettings {
   model: string;
   baseUrl: string;
   treeWidth: number;
+  /** Starts the workspace with the conversation list collapsed to a rail. */
+  treePanelCollapsed: boolean;
   knowledgeFolder: string;
   treeCaptureFolder: string;
   obsidianMarkdownCompatibility: boolean;
@@ -41,6 +43,9 @@ export interface TreeTalkSettings {
   relatedNoteContextEnabled: boolean;
   contextDivergenceEnabled: boolean;
   relatedNoteDepth: RelatedNoteDepth;
+  /** Free-form instructions appended to every outgoing request. */
+  defaultPrompt: string;
+  defaultPromptEnabled: boolean;
   depositGraphWindow: DepositGraphWindowState;
 }
 
@@ -55,6 +60,7 @@ export const DEFAULT_SETTINGS: TreeTalkSettings = {
   model: "deepseek-v4-flash",
   baseUrl: "",
   treeWidth: 220,
+  treePanelCollapsed: true,
   knowledgeFolder: "TreeTalk 知识",
   treeCaptureFolder: "TreeTalk",
   obsidianMarkdownCompatibility: true,
@@ -69,6 +75,8 @@ export const DEFAULT_SETTINGS: TreeTalkSettings = {
   relatedNoteContextEnabled: false,
   contextDivergenceEnabled: false,
   relatedNoteDepth: 1,
+  defaultPrompt: "",
+  defaultPromptEnabled: true,
   depositGraphWindow: {
     x: 120,
     y: 96,
@@ -120,7 +128,9 @@ export function normalizeTreeTalkSettings(
     answerThinkingMode:
       settings.answerThinkingMode === "enabled" ? "enabled" : "disabled",
     fullNoteContext: true,
-    noteContextTokenBudget: "full"
+    noteContextTokenBudget: "full",
+    defaultPrompt:
+      typeof settings.defaultPrompt === "string" ? settings.defaultPrompt : ""
   };
 }
 
@@ -213,6 +223,10 @@ function parseSettings(value: unknown): TreeTalkSettings {
       value.treeWidth > 0
         ? value.treeWidth
         : DEFAULT_SETTINGS.treeWidth,
+    treePanelCollapsed:
+      typeof value.treePanelCollapsed === "boolean"
+        ? value.treePanelCollapsed
+        : DEFAULT_SETTINGS.treePanelCollapsed,
     knowledgeFolder:
       typeof value.knowledgeFolder === "string" &&
       value.knowledgeFolder.trim().length > 0
@@ -261,6 +275,14 @@ function parseSettings(value: unknown): TreeTalkSettings {
       value.relatedNoteDepth,
       DEFAULT_SETTINGS.relatedNoteDepth
     ),
+    defaultPrompt:
+      typeof value.defaultPrompt === "string"
+        ? value.defaultPrompt
+        : DEFAULT_SETTINGS.defaultPrompt,
+    defaultPromptEnabled:
+      typeof value.defaultPromptEnabled === "boolean"
+        ? value.defaultPromptEnabled
+        : DEFAULT_SETTINGS.defaultPromptEnabled,
     depositGraphWindow: parseDepositGraphWindowState(
       value.depositGraphWindow
     )

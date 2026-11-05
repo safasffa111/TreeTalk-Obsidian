@@ -28,6 +28,16 @@
   background: var(--background-primary);
 }
 
+/* Collapsed: the whole list pane is gone; the header button brings it back. */
+.treetalk-workspace.is-tree-collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.treetalk-workspace.is-tree-collapsed > .treetalk-workspace-tree,
+.treetalk-workspace.is-tree-collapsed > .treetalk-resizer {
+  display: none;
+}
+
 .treetalk-workspace-conversation {
   display: flex;
   min-width: 0;
@@ -46,7 +56,8 @@
 
 .treetalk-empty-state {
   display: flex;
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
@@ -192,7 +203,11 @@ button.treetalk-space-trigger[aria-expanded="true"]
 }
 
 .treetalk-space-list {
+  max-height: min(60vh, 480px);
   padding-top: 2px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .treetalk-space-row {
@@ -285,6 +300,49 @@ button.treetalk-space-close:hover {
   background: var(--background-modifier-hover) !important;
 }
 
+button.treetalk-space-rename {
+  appearance: none;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  place-items: center;
+  margin: 0;
+  padding: 3px;
+  border: 0 !important;
+  border-radius: 3px;
+  box-shadow: none !important;
+  color: var(--text-faint);
+  background: transparent !important;
+  line-height: 1;
+}
+
+button.treetalk-space-rename svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2;
+}
+
+button.treetalk-space-rename:hover:not(:disabled),
+button.treetalk-space-rename:focus-visible {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover) !important;
+}
+
+button.treetalk-space-rename:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px color-mix(
+    in srgb,
+    var(--interactive-accent) 30%,
+    transparent
+  ) !important;
+}
+
+button.treetalk-space-rename:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
 button.treetalk-space-create {
   appearance: none;
   display: flex;
@@ -370,13 +428,99 @@ button.treetalk-tree-row.is-active {
   flex-direction: column;
 }
 
-.treetalk-history-bar {
+.treetalk-conversation-header {
   display: flex;
   flex: 0 0 auto;
-  justify-content: flex-end;
-  padding: 7px 12px;
-  border-bottom: 1px solid var(--background-modifier-border);
-  background: var(--background-primary);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 12px 2px;
+}
+
+button.treetalk-list-toggle {
+  appearance: none;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  place-items: center;
+  margin: 0;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 4px;
+  box-shadow: none !important;
+  color: var(--text-muted);
+  background: transparent !important;
+  line-height: 1;
+  cursor: pointer;
+}
+
+button.treetalk-list-toggle svg {
+  width: 16px;
+  height: 16px;
+}
+
+button.treetalk-list-toggle:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover) !important;
+}
+
+button.treetalk-list-toggle:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px color-mix(
+    in srgb,
+    var(--interactive-accent) 30%,
+    transparent
+  ) !important;
+}
+
+button.treetalk-list-toggle[hidden] {
+  display: none;
+}
+
+.treetalk-conversation-path {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+}
+
+.treetalk-conversation-path[hidden] {
+  display: none;
+}
+
+.treetalk-conversation-path-segment {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.treetalk-conversation-path-segment:last-child {
+  color: var(--text-normal);
+}
+
+.treetalk-conversation-path-separator {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+}
+
+.treetalk-conversation-header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.treetalk-conversation-header-actions > button {
+  margin: 0;
 }
 
 .treetalk-restore {
@@ -517,13 +661,6 @@ button.treetalk-tree-row.is-active {
   background: var(--background-modifier-hover);
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
-}
-
-.treetalk-capture-bar {
-  display: flex;
-  flex: 0 0 auto;
-  justify-content: flex-end;
-  padding: 6px 14px 0;
 }
 
 button.treetalk-capture-tree,
@@ -1048,6 +1185,58 @@ button.treetalk-history-delete:hover {
   opacity: 0.42;
 }
 
+.treetalk-clear-contexts,
+.treetalk-default-prompt-toggle {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  margin: 0;
+  padding: 6px;
+  border: 0;
+  border-radius: 6px;
+  box-shadow: none;
+  color: var(--text-muted);
+  background: transparent;
+  line-height: 1;
+}
+
+.treetalk-clear-contexts svg,
+.treetalk-default-prompt-toggle svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2;
+}
+
+.treetalk-clear-contexts:hover:not(:disabled),
+.treetalk-default-prompt-toggle:hover:not(:disabled) {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.treetalk-default-prompt-toggle.is-enabled {
+  color: var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 12%, transparent);
+}
+
+.treetalk-clear-contexts:focus-visible,
+.treetalk-default-prompt-toggle:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 2px color-mix(
+    in srgb,
+    var(--interactive-accent) 30%,
+    transparent
+  );
+}
+
+.treetalk-default-prompt-toggle.is-unavailable,
+.treetalk-clear-contexts:disabled,
+.treetalk-default-prompt-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
 .treetalk-send {
   display: grid;
   width: 28px;
@@ -1246,10 +1435,6 @@ mark.treetalk-source-range-flash {
   .treetalk-response-progress::before {
     animation: none;
   }
-}
-
-.treetalk-capture-bar {
-  gap: 6px;
 }
 
 /* TreeTalk relationship graph: PixiJS surface with direct pointer input. */

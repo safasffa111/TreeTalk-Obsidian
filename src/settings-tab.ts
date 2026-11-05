@@ -58,9 +58,19 @@ export class TreeTalkSettingTab extends PluginSettingTab {
     // External state changes (composer buttons) need a full re-render so
     // control values and disabled/visible predicates stay in sync.
     this.unsubscribeWebSearch = plugin.subscribeWebSearch(() => this.update());
-    this.unsubscribeComposerControls = plugin.subscribeComposerControls(() =>
-      this.update()
-    );
+    this.unsubscribeComposerControls = plugin.subscribeComposerControls(() => {
+      // Re-rendering while a multi-line control has focus would drop the caret,
+      // so a settings change typed into the default prompt keeps its input
+      // untouched and only refreshes the other controls afterwards.
+      const active = this.containerEl.ownerDocument.activeElement;
+      if (
+        active instanceof HTMLTextAreaElement &&
+        this.containerEl.contains(active)
+      ) {
+        return;
+      }
+      this.update();
+    });
   }
 
   getSettingDefinitions(): SettingDefinitionItem[] {
@@ -83,6 +93,32 @@ export class TreeTalkSettingTab extends PluginSettingTab {
             name: "回答思考模式",
             desc: "控制 DeepSeek 是否启用思考；输入框按钮与此处实时同步。",
             control: { type: "toggle", key: "answerThinkingEnabled" }
+          }
+        ]
+      },
+      {
+        type: "group",
+        heading: "提示词",
+        items: [
+          {
+            name: "默认提示词",
+            desc: "填写后会作为系统指令附加到每次提问。留空则等同于未配置；聊天输入框右下角的小按钮可随时开关。",
+            control: {
+              type: "textarea",
+              key: "defaultPrompt",
+              rows: 5,
+              placeholder: "例如：请用中文回答，先给结论，再列出可执行步骤。"
+            }
+          },
+          {
+            name: "启用默认提示词",
+            desc: "关闭后即使已填写默认提示词，也不会随提问发送。与输入框按钮实时同步。",
+            control: {
+              type: "toggle",
+              key: "defaultPromptEnabled",
+              disabled: () =>
+                this.plugin.getSettings().defaultPrompt.trim().length === 0
+            }
           }
         ]
       },
@@ -209,6 +245,10 @@ export class TreeTalkSettingTab extends PluginSettingTab {
         return settings.streamingOutputEnabled;
       case "answerThinkingEnabled":
         return settings.answerThinkingMode === "enabled";
+      case "defaultPrompt":
+        return settings.defaultPrompt;
+      case "defaultPromptEnabled":
+        return settings.defaultPromptEnabled;
       case "model":
         return settings.model;
       case "baseUrl":
@@ -255,6 +295,18 @@ export class TreeTalkSettingTab extends PluginSettingTab {
         await this.plugin.updateSettings({
           ...settings,
           answerThinkingMode: value ? "enabled" : "disabled"
+        });
+        break;
+      case "defaultPrompt":
+        await this.plugin.updateSettings({
+          ...settings,
+          defaultPrompt: String(value)
+        });
+        break;
+      case "defaultPromptEnabled":
+        await this.plugin.updateSettings({
+          ...settings,
+          defaultPromptEnabled: Boolean(value)
         });
         break;
       case "model":

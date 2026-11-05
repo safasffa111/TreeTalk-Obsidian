@@ -1,3 +1,13 @@
+# 我的修改内容：
+1. 对话列表添加折叠功能，更节省空间
+2. 对话列表重命名
+3. 对话列表添加滚动条，内容超出屏幕时仍可使用
+4. 新增默认提示词功能，可在设置里预制，聊天时可选择是否启用
+5. 新增一键清空引用的功能，有的时候读的时候习惯选中，不一会儿就会叠加十几层引用
+6. 沉淀回答时新增重命名与一键插入功能
+7. 标题栏新增显示当前聊天名称与层级，并在空间不够时自动压缩文本长度
+以下是原作者内容
+---
 # TreeTalk for Obsidian
 
 
@@ -15,6 +25,7 @@ TreeTalk 是一款可追溯、可分叉、可沉淀的 Obsidian AI 研究工具�
 - 知识沉淀：单条回答与整棵对话树可一键沉淀为纯 Markdown 笔记。
 - 摘录回链：框选内容可拖入笔记，生成带来源链接的引用块。
 - 联网模式：DeepSeek 按需搜索网页（可在设置中关闭）。
+- 默认提示词：在设置中填写一段固定指令，每次提问自动附带，输入框右下角按钮可随时开关。
 
 ## 0.9.5 重点更新
 
@@ -44,12 +55,17 @@ TreeTalk 是一款可追溯、可分叉、可沉淀的 Obsidian AI 研究工具�
 ## 基本操作
 
 - 点击 TreeTalk 侧边栏图标：打开或关闭 TreeTalk。
+- 左侧栏默认完全收起（不占宽度）：聊天区顶部左侧的两道杠按钮可展开或收起“对话列表”和对话树，状态会被记住。
+- 聊天区顶部中间显示当前路径“对话标题 › 节点标题 › …”，与右侧的“沉淀对话树”同一行；空间不够时逐段省略。
 - 点击树状列表第一行“对话列表”：展开或收起当前打开的对话。
+- 双击“对话列表”中的某个对话，或点击该行右侧的铅笔图标：重命名该对话。
 - 正常发送：继续当前节点。
 - 在输入区域单击鼠标右键切换到分支模式后发送：在当前节点下创建子节点。
 - 框选 TreeTalk 问题或回答：加入上下文并切换到子分支模式；移除最后一个 TreeTalk 框选后恢复原模式。
 - 框选当前 Markdown 笔记：加入上下文，但保持当前提问模式。
 - 点击上下文条目右侧的 `×`：删除该项上下文。
+- 点击输入框右下角的橡皮擦按钮：一次清空当前问题已堆积的全部引用。
+- 点击输入框右下角的提示词按钮：临时启用或关闭设置中的“默认提示词”（未配置时按钮为灰色）。
 - 拖动框选原文或上下文条目到 Markdown 笔记：生成 TreeTalk 摘录。
 - 点击摘录中的“返回 TreeTalk 来源”：按活动对话、历史对话的顺序定位来源。
 - 点击原文留痕：进入使用该选段提问的节点。
@@ -164,6 +180,7 @@ TreeTalk is a traceable, branching AI research tool for Obsidian. Every follow-u
 - Excerpt backlinks: drag selected text into a note to create a quote block with a source link.
 - Relationship graph: visualize deposited conversation trees and notes, with focus and dimming controls.
 - Web search: DeepSeek can search the web on demand (toggle in settings).
+- Default prompt: configure one reusable instruction in settings; it is attached to every question and can be toggled from the button at the bottom-right of the input.
 
 ## What's new in 0.9.5
 
@@ -193,12 +210,17 @@ The directory must contain `main.js`, `manifest.json`, and `styles.css`. Reload 
 ## Usage
 
 - Click the TreeTalk sidebar icon to open or close TreeTalk.
+- The left list pane starts fully collapsed (zero width); the two-bar button at the left of the chat header shows or hides the conversation list and node tree, and the choice is remembered.
+- The header centre shows the current path ("conversation › node › …") on the same row as "沉淀对话树"; segments are shortened with an ellipsis when space runs out.
 - Click "对话列表" (conversation list) at the top of the tree to expand or collapse the open conversation.
+- Double-click a conversation in the list, or click its pencil icon: rename that conversation.
 - Normal send: continue the current node.
 - Right-click inside the input area to switch to branch mode, then send: create a child node under the current node.
 - Select TreeTalk messages: adds the selection to the context and switches to child-branch mode; removing the last TreeTalk selection restores the previous mode.
 - Select the current Markdown note: adds to the context without forcing a branch.
 - Click the `×` on a context item to remove it.
+- Click the eraser button at the bottom-right of the input: clear every reference collected for the current question at once.
+- Click the prompt button at the bottom-right of the input: enable or disable the configured default prompt (grey while nothing is configured).
 - Drag selected text or a context item into a Markdown note: creates a TreeTalk excerpt (see below).
 - Click "返回 TreeTalk 来源" in an excerpt: locates the source in the active conversation or history.
 - Click a source trace: jumps to the node that used that selection.

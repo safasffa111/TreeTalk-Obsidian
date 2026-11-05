@@ -285,6 +285,32 @@ export function removeSelectionFromDraft(
   return parseConversation(state);
 }
 
+/**
+ * Drops every selection context from the current draft in one step. Reading a
+ * note tends to stack references one by one, so the composer needs a single
+ * "clear all" command instead of removing chips individually.
+ */
+export function clearDraftSelectionContexts(
+  conversation: ConversationFile,
+  nodeId: string,
+  now: string
+): ConversationFile {
+  const state = mutableClone(conversation);
+  const node = requiredNode(state, nodeId);
+  if (node.draft.selectionContexts.length === 0) {
+    return parseConversation(state);
+  }
+  node.draft.selectionContexts = [];
+  if (node.draft.selectionModeBeforeCapture !== undefined) {
+    node.draft.mode = node.draft.selectionModeBeforeCapture;
+    delete node.draft.selectionModeBeforeCapture;
+  }
+  node.updatedAt = now;
+  state.currentNodeId = nodeId;
+  nextRevision(state, now);
+  return parseConversation(state);
+}
+
 export function submitChildDraft(
   conversation: ConversationFile,
   input: SubmitChildDraftInput

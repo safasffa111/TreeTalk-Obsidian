@@ -8,8 +8,10 @@ import type { ConversationTabsStore } from "../tabs/conversation-tabs-store";
 import {
   renderConversationPanel,
   type AnswerThinkingControlPort,
+  type ConversationListControlPort,
   type ConversationPanelActions,
   type ContextDivergenceControlPort,
+  type DefaultPromptControlPort,
   type RelatedNoteControlPort,
   type WebSearchControlPort
 } from "./conversation-view";
@@ -28,11 +30,15 @@ import {
 export interface TreeTalkWorkspaceLayout {
   initialTreeWidth: number;
   onTreeWidthChange(width: number): void;
+  initialTreeCollapsed?: boolean;
+  onTreeCollapsedChange?(collapsed: boolean): void;
 }
 
 const DEFAULT_LAYOUT: TreeTalkWorkspaceLayout = {
   initialTreeWidth: 220,
-  onTreeWidthChange: () => undefined
+  onTreeWidthChange: () => undefined,
+  initialTreeCollapsed: true,
+  onTreeCollapsedChange: () => undefined
 };
 
 export class TreeTalkWorkspaceView extends ItemView {
@@ -54,7 +60,8 @@ export class TreeTalkWorkspaceView extends ItemView {
     private readonly webSearch?: WebSearchControlPort,
     private readonly relatedNotes?: RelatedNoteControlPort,
     private readonly contextDivergence?: ContextDivergenceControlPort,
-    private readonly answerThinking?: AnswerThinkingControlPort
+    private readonly answerThinking?: AnswerThinkingControlPort,
+    private readonly defaultPrompt?: DefaultPromptControlPort
   ) {
     super(leaf);
   }
@@ -76,6 +83,26 @@ export class TreeTalkWorkspaceView extends ItemView {
     this.contentEl.replaceChildren();
     const shell = document.createElement("div");
     shell.className = "treetalk-workspace";
+    let collapsed = this.layout.initialTreeCollapsed ?? true;
+    const listListeners = new Set<() => void>();
+    const applyCollapsed = (next: boolean): void => {
+      collapsed = next;
+      shell.classList.toggle("is-tree-collapsed", collapsed);
+      for (const listener of [...listListeners]) listener();
+    };
+    const listControl: ConversationListControlPort = {
+      isCollapsed: () => collapsed,
+      toggle: () => {
+        applyCollapsed(!collapsed);
+        this.layout.onTreeCollapsedChange?.(collapsed);
+      },
+      subscribe: (listener) => {
+        listListeners.add(listener);
+        return () => {
+          listListeners.delete(listener);
+        };
+      }
+    };
     const tree = document.createElement("section");
     tree.className = "treetalk-workspace-tree";
     const switcherMount = document.createElement("div");
@@ -91,6 +118,7 @@ export class TreeTalkWorkspaceView extends ItemView {
     const separator = document.createElement("div");
     separator.className = "treetalk-resizer";
     shell.append(tree, separator, conversation);
+    applyCollapsed(collapsed);
     this.contentEl.append(shell);
     const cleanups = [
       renderTreePanel(treeMount, this.store, this.sourceHighlights),
@@ -110,7 +138,9 @@ export class TreeTalkWorkspaceView extends ItemView {
           webSearch: this.webSearch,
           relatedNotes: this.relatedNotes,
           contextDivergence: this.contextDivergence,
-          answerThinking: this.answerThinking
+          answerThinking: this.answerThinking,
+          defaultPrompt: this.defaultPrompt,
+          conversationList: listControl
         }
       ),
       installResizableSplit(
@@ -132,6 +162,7 @@ export class TreeTalkWorkspaceView extends ItemView {
     } else {
       switcherMount.remove();
     }
+    cleanups.push(() => listListeners.clear());
     this.cleanups = cleanups;
     return Promise.resolve();
   }

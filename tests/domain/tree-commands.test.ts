@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addSelectionToDraft,
+  clearDraftSelectionContexts,
   continueNode,
   prepareChildDraft,
   prepareSelectionChildDraft,
@@ -262,6 +263,58 @@ describe("tree commands", () => {
     expect(
       requireNode(removed, "child").draft.selectionModeBeforeCapture
     ).toBeUndefined();
+  });
+
+  it("clears every draft context at once", () => {
+    const second = {
+      ...selection,
+      messageId: "assistant-2",
+      quote: "second"
+    };
+    const once = addSelectionToDraft(
+      validConversation(),
+      "child",
+      selection,
+      NOW
+    );
+    const twice = addSelectionToDraft(once, "child", second, NOW);
+
+    const cleared = clearDraftSelectionContexts(twice, "child", NOW);
+
+    expect(requireNode(cleared, "child").draft.selectionContexts).toEqual([]);
+    expect(cleared.revision).toBe(twice.revision + 1);
+  });
+
+  it("restores the captured mode after a single selection is cleared", () => {
+    const selected = addSelectionToDraft(
+      validConversation(),
+      "child",
+      selection,
+      NOW
+    );
+    const prepared = prepareSelectionChildDraft(selected, {
+      nodeId: "child",
+      now: NOW
+    });
+
+    expect(requireNode(prepared, "child").draft.mode).toBe("child");
+
+    const cleared = clearDraftSelectionContexts(prepared, "child", NOW);
+
+    expect(requireNode(cleared, "child").draft.selectionContexts).toEqual([]);
+    expect(requireNode(cleared, "child").draft.mode).toBe("continue");
+    expect(
+      requireNode(cleared, "child").draft.selectionModeBeforeCapture
+    ).toBeUndefined();
+  });
+
+  it("leaves the conversation untouched when no draft context is present", () => {
+    const before = validConversation();
+
+    const cleared = clearDraftSelectionContexts(before, "child", NOW);
+
+    expect(cleared.revision).toBe(before.revision);
+    expect(requireNode(cleared, "child").draft.selectionContexts).toEqual([]);
   });
 
   it("restores an existing child mode after the final message selection is removed", () => {

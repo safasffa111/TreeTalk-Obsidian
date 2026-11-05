@@ -18,7 +18,10 @@ import { createConversation } from "./domain/conversation-factory";
 import { RelationshipGraphWindow } from "./relationship-graph/window";
 import { freezeNoteContextForMessage } from "./domain/note-context-freeze";
 import { applyContextPlanPersistencePatch } from "./domain/context-persistence";
-import { buildTreeTalkSystemPrompt } from "./domain/full-context-protocol";
+import {
+  buildTreeTalkSystemPrompt,
+  withDefaultPrompt
+} from "./domain/full-context-protocol";
 import {
   normalizeObsidianMarkdown,
   OBSIDIAN_MARKDOWN_SYSTEM_PROMPT
@@ -103,6 +106,7 @@ import {
   type TreeTalkSettings
 } from "./tabs/plugin-data";
 import { TreeTalkSettingTab } from "./settings-tab";
+import { promptForName } from "./views/name-input-modal";
 import { TabLifecycleController } from "./tabs/tab-lifecycle-controller";
 import { TabResponseRouter } from "./tabs/tab-response-router";
 import type { TabResponseTicket } from "./tabs/tab-response-router";
@@ -424,6 +428,13 @@ export default class TreeTalkPlugin extends Plugin {
                 ...this.pluginSettings,
                 treeWidth
               });
+            },
+            initialTreeCollapsed: this.pluginSettings.treePanelCollapsed,
+            onTreeCollapsedChange: (treePanelCollapsed) => {
+              void this.updateSettings({
+                ...this.pluginSettings,
+                treePanelCollapsed
+              });
             }
           },
           this.tabsStore,
@@ -431,7 +442,8 @@ export default class TreeTalkPlugin extends Plugin {
             create: () => this.createConversationTab(),
             close: (tabId) => this.closeTab(tabId),
             reorder: (tabId, targetIndex) =>
-              this.tabsStore.reorder(tabId, targetIndex)
+              this.tabsStore.reorder(tabId, targetIndex),
+            rename: (tabId) => this.renameConversationTab(tabId)
           },
           undefined,
           this.sourceHighlights,
@@ -463,6 +475,13 @@ export default class TreeTalkPlugin extends Plugin {
             answerThinkingMode: () => this.pluginSettings.answerThinkingMode,
             isAvailable: () => true,
             setMode: (mode) => this.setAnswerThinkingMode(mode),
+            subscribe: (listener) => this.subscribeComposerControls(listener)
+          },
+          {
+            isEnabled: () => this.pluginSettings.defaultPromptEnabled,
+            hasPrompt: () =>
+              this.pluginSettings.defaultPrompt.trim().length > 0,
+            setEnabled: (enabled) => this.setDefaultPromptEnabled(enabled),
             subscribe: (listener) => this.subscribeComposerControls(listener)
           }
         )
@@ -521,7 +540,10 @@ export default class TreeTalkPlugin extends Plugin {
       normalized.relatedNoteContextEnabled !==
         this.pluginSettings.relatedNoteContextEnabled ||
       normalized.contextDivergenceEnabled !==
-        this.pluginSettings.contextDivergenceEnabled;
+        this.pluginSettings.contextDivergenceEnabled ||
+      normalized.defaultPromptEnabled !==
+        this.pluginSettings.defaultPromptEnabled ||
+      normalized.defaultPrompt !== this.pluginSettings.defaultPrompt;
     this.pluginSettings = normalized;
     if (webSearchChanged) {
       for (const listener of this.webSearchListeners) listener();
@@ -572,6 +594,19 @@ export default class TreeTalkPlugin extends Plugin {
       ...this.pluginSettings,
       contextDivergenceEnabled
     });
+  }
+
+  private setDefaultPromptEnabled(defaultPromptEnabled: boolean): Promise<void> {
+    return this.updateSettings({
+      ...this.pluginSettings,
+      defaultPromptEnabled
+    });
+  }
+
+  private effectiveDefaultPrompt(): string {
+    return this.pluginSettings.defaultPromptEnabled
+      ? this.pluginSettings.defaultPrompt
+      : "";
   }
 
   private setAnswerThinkingMode(
@@ -915,7 +950,7 @@ export default class TreeTalkPlugin extends Plugin {
     const ticket = this.responseRouter.capture(tab.id, responseNodeId);
     const profile = this.currentProviderProfile();
     const contextMode = "full";
-    const systemPrompt =
+    const baseSystemPrompt =
       contextMode === "full"
         ? buildTreeTalkSystemPrompt(
             this.pluginSettings.obsidianMarkdownCompatibility
@@ -923,6 +958,10 @@ export default class TreeTalkPlugin extends Plugin {
         : this.pluginSettings.obsidianMarkdownCompatibility
           ? OBSIDIAN_MARKDOWN_SYSTEM_PROMPT
           : "";
+    const systemPrompt = withDefaultPrompt(
+      baseSystemPrompt,
+      this.effectiveDefaultPrompt()
+    );
     const currentUserMessage = requestState.nodes[responseNodeId]?.messages.find(
       (message) => message.id === userMessageId
     );
@@ -1436,8 +1475,10 @@ export default class TreeTalkPlugin extends Plugin {
           }
           return this.lifecycleQueue.run(() => service.delete(entry));
         },
-        reportError: () => {
-          new Notice("操作失败，历史对话仍已安全保留");
+        reportError: (error) => {
+          const detail = error instanceof Error ? error.message : String(error);
+          logWarning("历史对话操作失败", error);
+          new Notice(`操作失败：${detail}（历史对话仍已安全保留）`);
         }
       }
     ).open();
@@ -1502,6 +1543,54 @@ export default class TreeTalkPlugin extends Plugin {
       index.upsert(entry.folder, saved);
       return index.entries();
     });
+  }
+
+  /**
+   * Renames the conversation behind an open tab. The chat view's
+   * 「对话列表」 calls this, so an open conversation can be renamed without
+   * closing it first.
+   */
+  private async renameConversationTab(tabId: string): Promise<void> {
+    const tab = this.tabsStore.getTab(tabId);
+    if (tab === undefined) return;
+    const title = await promptForName(this.app, {
+      title: "重命名对话",
+      description: `为「${tab.title}」设置新的对话名称。`,
+      label: "对话名称",
+      value: tab.title,
+      placeholder: tab.title,
+      confirmLabel: "重命名",
+      maxLength: 120,
+      validate: (value) =>
+        value.trim().length === 0 ? "名称不能为空" : undefined
+    });
+    if (title === undefined) return;
+    const trimmed = title.trim();
+    if (trimmed.length === 0 || trimmed === tab.title) return;
+    try {
+      await this.lifecycleQueue.run(async () => {
+        const current = this.tabsStore.getTab(tabId);
+        if (current === undefined) return;
+        if (current.lifecycle !== "idle") {
+          new Notice("当前对话正在处理中，稍后再重命名");
+          return;
+        }
+        const now = new Date().toISOString();
+        const renamed = renameConversation(current.conversation, trimmed, now);
+        this.tabsStore.updateTab(tabId, (entry) => ({
+          ...entry,
+          title: renamed.title,
+          conversation: renamed
+        }));
+        if (renamed.status === "archived") {
+          this.historyIndex?.upsert(current.folder, renamed);
+        }
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      logWarning(`重命名对话失败: ${tabId}`, error);
+      new Notice(`重命名失败：${detail}`);
+    }
   }
 
   private async closeOpenHistory(conversationId: string): Promise<void> {
