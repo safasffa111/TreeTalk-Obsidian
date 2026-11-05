@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { createNoteSelectionContext } from "../../src/domain/note-selection-context";
 import type { NoteSelectionContext } from "../../src/domain/types";
 import {
   insertMarkdownLinks,
   markdownWikiLink,
-  resolveMarkdownAnchor
+  resolveMarkdownAnchor,
+  resolveNoteMarkdownAnchor
 } from "../../src/knowledge/markdown-branch-links";
 
 const context: NoteSelectionContext = {
@@ -161,6 +163,25 @@ describe("pure Markdown branch links", () => {
 
   it("refuses an ambiguous repeated selection", () => {
     expect(resolveMarkdownAnchor("网络层和网络层", context)).toBeUndefined();
+  });
+
+  it("uses the stored source snapshot for rendered selections with Markdown syntax", async () => {
+    const source = "---\ntags: [net]\n---\n\n前文 **网络层**负责寻址。\n";
+    const visible = "前文 网络层负责寻址。";
+    const renderedContext = await createNoteSelectionContext({
+      filePath: "Notes/network.md",
+      fileName: "network.md",
+      basis: "note-rendered-text-v1",
+      visibleText: visible,
+      sourceText: source,
+      startOffset: 3,
+      endOffset: 10
+    });
+
+    expect(resolveMarkdownAnchor(source, renderedContext)).toBeUndefined();
+    await expect(
+      resolveNoteMarkdownAnchor(source, renderedContext)
+    ).resolves.toEqual({ start: 26, end: 35 });
   });
 
   it("renders vault-root WikiLinks without the .md suffix", () => {

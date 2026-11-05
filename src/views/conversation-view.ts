@@ -9,6 +9,7 @@ import {
 } from "../domain/selection-anchor";
 import {
   addSelectionToDraft,
+  clearDraftSelectionContexts,
   prepareSelectionChildDraft,
   removeSelectionFromDraft
 } from "../domain/tree-commands";
@@ -17,6 +18,7 @@ import {
   isNoteSelectionContext,
   type ChatMessage,
   type ConversationFile,
+  type ConversationNode,
   type SelectionAnchor
 } from "../domain/types";
 import type { SourceHighlightPort } from "../navigation/source-highlight-store";
@@ -96,6 +98,22 @@ export interface WebSearchControlPort {
   isEnabled(): boolean;
   isAvailable(): boolean;
   setEnabled(enabled: boolean): Promise<void> | void;
+  subscribe(listener: () => void): () => void;
+}
+
+export interface DefaultPromptControlPort {
+  /** Whether the configured default prompt is appended to each request. */
+  isEnabled(): boolean;
+  /** Whether any default prompt is configured at all. */
+  hasPrompt(): boolean;
+  setEnabled(enabled: boolean): Promise<void> | void;
+  subscribe(listener: () => void): () => void;
+}
+
+export interface ConversationListControlPort {
+  /** Whether the conversation list pane is currently hidden. */
+  isCollapsed(): boolean;
+  toggle(): void;
   subscribe(listener: () => void): () => void;
 }
 
@@ -483,6 +501,8 @@ interface ComposerElements {
   contextDivergence: HTMLButtonElement;
   answerThinking: HTMLButtonElement;
   webSearch: HTMLButtonElement;
+  clearContexts: HTMLButtonElement;
+  defaultPrompt: HTMLButtonElement;
   send: HTMLButtonElement;
 }
 
@@ -621,6 +641,71 @@ export interface ConversationPanelOptions {
   relatedNotes?: RelatedNoteControlPort | undefined;
   contextDivergence?: ContextDivergenceControlPort | undefined;
   answerThinking?: AnswerThinkingControlPort | undefined;
+  defaultPrompt?: DefaultPromptControlPort | undefined;
+  conversationList?: ConversationListControlPort | undefined;
+}
+
+const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+/** Deepest node titles shown after the conversation title. */
+const MAX_PATH_SEGMENTS = 3;
+
+/**
+ * Two stacked bars, the upper one longer than the lower one: a compact
+ * conversation-list glyph that stays readable at 16px.
+ */
+function createListToggleIcon(doc: Document): SVGSVGElement {
+  const svg = doc.createElementNS(SVG_NAMESPACE, "svg");
+  svg.setAttribute("viewBox", "0 0 16 16");
+  svg.setAttribute("width", "16");
+  svg.setAttribute("height", "16");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  for (const path of ["M2.5 5.5h11", "M2.5 10.5h6"]) {
+    const line = doc.createElementNS(SVG_NAMESPACE, "path");
+    line.setAttribute("d", path);
+    line.setAttribute("fill", "none");
+    line.setAttribute("stroke", "currentColor");
+    line.setAttribute("stroke-width", "1.6");
+    line.setAttribute("stroke-linecap", "round");
+    svg.append(line);
+  }
+  return svg;
+}
+
+function nodeTitle(node: ConversationNode): string {
+  const title = node.title.trim();
+  return title.length > 0 ? title : "未命名分支";
+}
+
+/**
+ * Conversation title followed by the node titles from the root to the current
+ * node. The root label is skipped when it merely repeats the conversation
+ * title, and only the deepest few ancestors are kept so a long branch cannot
+ * drown the bar.
+ */
+export function conversationPathSegments(
+  conversation: ConversationFile
+): string[] {
+  const titles: string[] = [];
+  const visited = new Set<string>();
+  let node: ConversationNode | undefined =
+    conversation.nodes[conversation.currentNodeId];
+  while (node !== undefined && !visited.has(node.id)) {
+    visited.add(node.id);
+    titles.push(nodeTitle(node));
+    node =
+      node.parentId === null ? undefined : conversation.nodes[node.parentId];
+  }
+  titles.reverse();
+  if (titles.length > 0 && titles[0] === conversation.title.trim()) {
+    titles.shift();
+  }
+  const tail = titles.slice(-MAX_PATH_SEGMENTS);
+  const conversationTitle =
+    conversation.title.trim().length > 0 ? conversation.title.trim() : "新对话";
+  return titles.length > tail.length
+    ? [conversationTitle, "…", ...tail]
+    : [conversationTitle, ...tail];
 }
 
 export function responseProgressLabel(progress: ResponseProgressRecord): string {
@@ -772,6 +857,15 @@ export function renderConversationPanel(
   let shellKey = "";
   let messagesMount: HTMLElement | undefined;
   let composer: ComposerElements | undefined;
+  let header:
+    | {
+        root: HTMLElement;
+        toggle: HTMLButtonElement;
+        path: HTMLElement;
+        actions: HTMLElement;
+      }
+    | undefined;
+  let headerPathKey = "";
   let followBottom = true;
   const messageViews = new Map<string, MessageViewState>();
   let shellCleanups: Array<() => void> = [];
@@ -904,7 +998,72 @@ export function renderConversationPanel(
     shellCleanups = [];
     messagesMount = undefined;
     composer = undefined;
+    header = undefined;
+    headerPathKey = "";
     shellKey = "";
+  };
+
+  const syncListToggle = (): void => {
+    if (header === undefined) return;
+    const collapsed = options?.conversationList?.isCollapsed() ?? true;
+    const label = collapsed ? "展开对话列表" : "收起对话列表";
+    header.toggle.setAttribute("aria-expanded", String(!collapsed));
+    header.toggle.setAttribute("aria-label", label);
+    header.toggle.title = label;
+  };
+
+  const createHeader = (): {
+    root: HTMLElement;
+    toggle: HTMLButtonElement;
+    path: HTMLElement;
+    actions: HTMLElement;
+  } => {
+    const root = document.createElement("div");
+    root.className = "treetalk-conversation-header";
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "treetalk-list-toggle treetalk-control";
+    toggle.append(createListToggleIcon(container.ownerDocument));
+    toggle.hidden = options?.conversationList === undefined;
+    toggle.addEventListener("click", () => {
+      options?.conversationList?.toggle();
+    });
+    const path = document.createElement("div");
+    path.className = "treetalk-conversation-path";
+    const actions = document.createElement("div");
+    actions.className = "treetalk-conversation-header-actions";
+    root.append(toggle, path, actions);
+    return { root, toggle, path, actions };
+  };
+
+  const syncHeaderPath = (
+    conversation: ConversationFile | undefined
+  ): void => {
+    if (header === undefined) return;
+    syncListToggle();
+    const segments =
+      conversation === undefined ? [] : conversationPathSegments(conversation);
+    const key = segments.join("\u0000");
+    if (key === headerPathKey) return;
+    headerPathKey = key;
+    const path = header.path;
+    path.replaceChildren();
+    path.hidden = segments.length === 0;
+    path.title = segments.join(" › ");
+    segments.forEach((segment, index) => {
+      if (index > 0) {
+        const separator = document.createElement("span");
+        separator.className = "treetalk-conversation-path-separator";
+        separator.setAttribute("aria-hidden", "true");
+        separator.textContent = "›";
+        path.append(separator);
+      }
+      const label = document.createElement("span");
+      label.className = "treetalk-conversation-path-segment";
+      label.textContent = segment;
+      label.title = segment;
+      path.append(label);
+    });
   };
 
   const createComposer = (): ComposerElements => {
@@ -920,6 +1079,8 @@ export function renderConversationPanel(
     const contextDivergence = document.createElement("button");
     const answerThinking = document.createElement("button");
     const webSearch = document.createElement("button");
+    const clearContexts = document.createElement("button");
+    const defaultPrompt = document.createElement("button");
     const send = document.createElement("button");
     root.className = "treetalk-composer";
     contextMount.className = "treetalk-selection-contexts";
@@ -950,6 +1111,23 @@ export function renderConversationPanel(
     webSearch.type = "button";
     webSearch.className = "treetalk-web-search-toggle treetalk-control";
     setIcon(webSearch, "globe-2");
+    clearContexts.type = "button";
+    clearContexts.className = "treetalk-clear-contexts treetalk-control";
+    clearContexts.setAttribute("aria-label", "清空所有引用");
+    clearContexts.title = "清空当前问题已引用的所有选区";
+    setIcon(clearContexts, "eraser");
+    clearContexts.addEventListener("click", () => {
+      store.update((current) =>
+        clearDraftSelectionContexts(
+          current,
+          current.currentNodeId,
+          new Date().toISOString()
+        )
+      );
+    });
+    defaultPrompt.type = "button";
+    defaultPrompt.className = "treetalk-default-prompt-toggle treetalk-control";
+    setIcon(defaultPrompt, "message-square-text");
     send.type = "button";
     input.addEventListener("input", () => {
       send.disabled = input.value.trim().length === 0;
@@ -975,6 +1153,8 @@ export function renderConversationPanel(
       contextDivergence,
       answerThinking,
       webSearch,
+      clearContexts,
+      defaultPrompt,
       send
     );
     inputActions.append(modeIndicator, graph, composerActions);
@@ -990,6 +1170,8 @@ export function renderConversationPanel(
       contextDivergence,
       answerThinking,
       webSearch,
+      clearContexts,
+      defaultPrompt,
       send
     };
   };
@@ -1623,6 +1805,55 @@ export function renderConversationPanel(
         void webSearch.setEnabled(!webSearch.isEnabled());
       };
     }
+
+    const selectionContextCount = node.draft.selectionContexts.length;
+    composer.clearContexts.disabled = isStreaming || selectionContextCount === 0;
+    composer.clearContexts.className =
+      "treetalk-clear-contexts treetalk-control";
+    composer.clearContexts.setAttribute(
+      "aria-label",
+      selectionContextCount === 0
+        ? "当前没有引用"
+        : `清空全部 ${String(selectionContextCount)} 处引用`
+    );
+    composer.clearContexts.title =
+      selectionContextCount === 0
+        ? "当前问题没有引用"
+        : `清空当前问题已引用的 ${String(selectionContextCount)} 处选区`;
+
+    const defaultPromptControl = options?.defaultPrompt;
+    const defaultPromptConfigured = defaultPromptControl?.hasPrompt() ?? false;
+    const defaultPromptEnabled =
+      (defaultPromptControl?.isEnabled() ?? false) && defaultPromptConfigured;
+    composer.defaultPrompt.disabled = isStreaming || !defaultPromptConfigured;
+    composer.defaultPrompt.className = [
+      "treetalk-default-prompt-toggle",
+      "treetalk-control",
+      defaultPromptEnabled ? "is-enabled" : "",
+      defaultPromptConfigured ? "" : "is-unavailable"
+    ]
+      .filter((entry) => entry.length > 0)
+      .join(" ");
+    composer.defaultPrompt.setAttribute(
+      "aria-pressed",
+      String(defaultPromptEnabled)
+    );
+    composer.defaultPrompt.setAttribute(
+      "aria-label",
+      defaultPromptEnabled ? "关闭默认提示词" : "开启默认提示词"
+    );
+    composer.defaultPrompt.title = !defaultPromptConfigured
+      ? "未配置默认提示词。请在 设置 → TreeTalk → 提示词 中填写。"
+      : defaultPromptEnabled
+        ? "默认提示词已开启：每次提问都会附带设置里的默认提示词。点击关闭。"
+        : "默认提示词已关闭：本次提问不会附带默认提示词。点击开启。";
+    composer.defaultPrompt.onclick = null;
+    if (!isStreaming && defaultPromptConfigured && defaultPromptControl !== undefined) {
+      composer.defaultPrompt.onclick = () => {
+        void defaultPromptControl.setEnabled(!defaultPromptEnabled);
+      };
+    }
+
     composer.send.onclick = null;
     if (isStreaming) {
       composer.send.className = "treetalk-send treetalk-stop";
@@ -1652,6 +1883,9 @@ export function renderConversationPanel(
     disposeShell();
     container.replaceChildren();
     container.className = "treetalk-conversation";
+    header = createHeader();
+    container.append(header.root);
+    syncHeaderPath(conversation);
     if (conversation === undefined) {
       shellKey = "empty";
       emptyState(container, actions);
@@ -1666,8 +1900,6 @@ export function renderConversationPanel(
     ].join(":");
 
     if (mode === "archived") {
-      const historyBar = document.createElement("div");
-      historyBar.className = "treetalk-history-bar is-archived";
       const restore = document.createElement("button");
       restore.type = "button";
       restore.className = "treetalk-restore";
@@ -1676,13 +1908,10 @@ export function renderConversationPanel(
       restore.addEventListener("click", () => {
         if (actions?.restore !== undefined) void actions.restore();
       });
-      historyBar.append(restore);
-      container.append(historyBar);
+      header.actions.append(restore);
     }
 
     if (mode === "active" && actions?.captureTree !== undefined) {
-      const captureBar = document.createElement("div");
-      captureBar.className = "treetalk-capture-bar";
       const captureTree = document.createElement("button");
       captureTree.type = "button";
       captureTree.className = "treetalk-capture-tree";
@@ -1690,8 +1919,7 @@ export function renderConversationPanel(
       captureTree.addEventListener("click", () => {
         void actions.captureTree?.();
       });
-      captureBar.append(captureTree);
-      container.append(captureBar);
+      header.actions.append(captureTree);
     }
 
     messagesMount = document.createElement("div");
@@ -1741,6 +1969,7 @@ export function renderConversationPanel(
           ].join(":");
     if (nextKey !== shellKey) buildShell(conversation, mutable, mode);
     if (conversation === undefined) return;
+    syncHeaderPath(conversation);
     syncMessages(conversation, mutable);
     if (mutable) syncComposer(conversation);
   };
@@ -1782,6 +2011,14 @@ export function renderConversationPanel(
   const unsubscribeAnswerThinking = options?.answerThinking?.subscribe(() => {
     if (!disposed) sync();
   });
+  const unsubscribeDefaultPrompt = options?.defaultPrompt?.subscribe(() => {
+    if (!disposed) sync();
+  });
+  const unsubscribeConversationList = options?.conversationList?.subscribe(
+    () => {
+      if (!disposed) syncListToggle();
+    }
+  );
   sync();
   return () => {
     disposed = true;
@@ -1795,6 +2032,8 @@ export function renderConversationPanel(
     unsubscribeRelatedNotes?.();
     unsubscribeContextDivergence?.();
     unsubscribeAnswerThinking?.();
+    unsubscribeDefaultPrompt?.();
+    unsubscribeConversationList?.();
     disposeShell();
   };
 }

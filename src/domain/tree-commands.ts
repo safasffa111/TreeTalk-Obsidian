@@ -217,6 +217,28 @@ export function toggleBranchDraft(
   return parseConversation(state);
 }
 
+export function renameConversation(
+  conversation: ConversationFile,
+  title: string,
+  now: string
+): ConversationFile {
+  const trimmed = title.trim();
+  if (trimmed.length === 0) {
+    throw new Error("Conversation title cannot be empty");
+  }
+  const state = mutableClone(conversation);
+  state.title = trimmed;
+  // The root node keeps its own label, but a manual conversation title must
+  // not be overwritten by a pending root-node summary.
+  const root = requiredNode(state, state.rootNodeId);
+  if (root.titleSource !== "manual") {
+    root.titleSource = "manual";
+    root.updatedAt = now;
+  }
+  nextRevision(state, now);
+  return parseConversation(state);
+}
+
 export function addSelectionToDraft(
   conversation: ConversationFile,
   nodeId: string,
@@ -254,6 +276,32 @@ export function removeSelectionFromDraft(
     !hasMessageSelection &&
     node.draft.selectionModeBeforeCapture !== undefined
   ) {
+    node.draft.mode = node.draft.selectionModeBeforeCapture;
+    delete node.draft.selectionModeBeforeCapture;
+  }
+  node.updatedAt = now;
+  state.currentNodeId = nodeId;
+  nextRevision(state, now);
+  return parseConversation(state);
+}
+
+/**
+ * Drops every selection context from the current draft in one step. Reading a
+ * note tends to stack references one by one, so the composer needs a single
+ * "clear all" command instead of removing chips individually.
+ */
+export function clearDraftSelectionContexts(
+  conversation: ConversationFile,
+  nodeId: string,
+  now: string
+): ConversationFile {
+  const state = mutableClone(conversation);
+  const node = requiredNode(state, nodeId);
+  if (node.draft.selectionContexts.length === 0) {
+    return parseConversation(state);
+  }
+  node.draft.selectionContexts = [];
+  if (node.draft.selectionModeBeforeCapture !== undefined) {
     node.draft.mode = node.draft.selectionModeBeforeCapture;
     delete node.draft.selectionModeBeforeCapture;
   }

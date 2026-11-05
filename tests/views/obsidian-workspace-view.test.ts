@@ -187,6 +187,103 @@ describe("TreeTalkWorkspaceView", () => {
     ).toBeTruthy();
   });
 
+  it("hides the whole list pane by default behind one header button", async () => {
+    await view.onOpen();
+
+    const shell = view.contentEl.querySelector<HTMLElement>(
+      ".treetalk-workspace"
+    );
+    const header = shell?.querySelector(".treetalk-conversation-header");
+    const toggle = header?.querySelector<HTMLButtonElement>(
+      ".treetalk-list-toggle"
+    );
+
+    expect(shell?.classList.contains("is-tree-collapsed")).toBe(true);
+    expect(shell?.children).toHaveLength(3);
+    expect(header).toBeTruthy();
+    expect(toggle).toBeTruthy();
+    expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle?.getAttribute("aria-label")).toBe("展开对话列表");
+    const paths = [...(toggle?.querySelectorAll("path") ?? [])].map((path) =>
+      path.getAttribute("d")
+    );
+    expect(paths).toEqual(["M2.5 5.5h11", "M2.5 10.5h6"]);
+  });
+
+  it("expands and collapses the list pane from the header button", async () => {
+    const onTreeCollapsedChange = vi.fn();
+    view = new TreeTalkWorkspaceView(
+      {} as never,
+      new ConversationSessionStore(validConversation()),
+      { send: vi.fn(() => Promise.resolve()) },
+      {
+        initialTreeWidth: 220,
+        onTreeWidthChange: vi.fn(),
+        initialTreeCollapsed: true,
+        onTreeCollapsedChange
+      }
+    );
+    await view.onOpen();
+
+    const shell = view.contentEl.querySelector<HTMLElement>(
+      ".treetalk-workspace"
+    );
+    const toggle = view.contentEl.querySelector<HTMLButtonElement>(
+      ".treetalk-list-toggle"
+    );
+
+    toggle?.click();
+    expect(shell?.classList.contains("is-tree-collapsed")).toBe(false);
+    expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+    expect(toggle?.getAttribute("aria-label")).toBe("收起对话列表");
+    expect(onTreeCollapsedChange).toHaveBeenLastCalledWith(false);
+
+    toggle?.click();
+    expect(shell?.classList.contains("is-tree-collapsed")).toBe(true);
+    expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+    expect(onTreeCollapsedChange).toHaveBeenLastCalledWith(true);
+    expect(onTreeCollapsedChange).toHaveBeenCalledTimes(2);
+  });
+
+  it("honours a persisted expanded conversation list", async () => {
+    view = new TreeTalkWorkspaceView(
+      {} as never,
+      new ConversationSessionStore(validConversation()),
+      { send: vi.fn(() => Promise.resolve()) },
+      {
+        initialTreeWidth: 220,
+        onTreeWidthChange: vi.fn(),
+        initialTreeCollapsed: false
+      }
+    );
+
+    await view.onOpen();
+
+    expect(
+      view.contentEl
+        .querySelector(".treetalk-workspace")
+        ?.classList.contains("is-tree-collapsed")
+    ).toBe(false);
+    expect(
+      view.contentEl
+        .querySelector(".treetalk-list-toggle")
+        ?.getAttribute("aria-expanded")
+    ).toBe("true");
+  });
+
+  it("removes the list pane entirely when collapsed", () => {
+    const css = readFileSync("styles.css", "utf8");
+    expect(css).toMatch(
+      /\.treetalk-workspace\.is-tree-collapsed\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/su
+    );
+    expect(css).toMatch(
+      /\.treetalk-workspace\.is-tree-collapsed\s*>\s*\.treetalk-workspace-tree,[^{]*\.treetalk-resizer\s*\{[^}]*display:\s*none/su
+    );
+    expect(css).not.toContain(".treetalk-tree-toggle");
+    expect(css).not.toContain("--treetalk-list-toggle-gap");
+    expect(css).not.toContain(".treetalk-tree-rail-width");
+  });
+
   it("uses a one pixel separator and fills the scoped view", () => {
     const css = readFileSync("styles.css", "utf8");
     expect(css).toMatch(

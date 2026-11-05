@@ -97,6 +97,39 @@ describe("TreeTalk plugin data", () => {
     expect(data.settings.webSearchEnabled).toBe(true);
   });
 
+  it("defaults the optional default prompt to empty and enabled", () => {
+    const data = parsePluginData({ provider: "deepseek" });
+
+    expect(data.settings.defaultPrompt).toBe("");
+    expect(data.settings.defaultPromptEnabled).toBe(true);
+    expect(DEFAULT_SETTINGS.defaultPrompt).toBe("");
+  });
+
+  it("preserves a configured default prompt and its toggle", () => {
+    const data = parsePluginData({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        defaultPrompt: "请用中文回答",
+        defaultPromptEnabled: false
+      }
+    });
+
+    expect(data.settings.defaultPrompt).toBe("请用中文回答");
+    expect(data.settings.defaultPromptEnabled).toBe(false);
+  });
+
+  it("starts with the conversation list collapsed and keeps an explicit choice", () => {
+    expect(parsePluginData({ provider: "deepseek" }).settings.treePanelCollapsed).toBe(
+      true
+    );
+    expect(DEFAULT_SETTINGS.treePanelCollapsed).toBe(true);
+    expect(
+      parsePluginData({
+        settings: { ...DEFAULT_SETTINGS, treePanelCollapsed: false }
+      }).settings.treePanelCollapsed
+    ).toBe(false);
+  });
+
   it("recovers from corrupt workspace data without discarding settings", () => {
     const data = parsePluginData({
       settings: {

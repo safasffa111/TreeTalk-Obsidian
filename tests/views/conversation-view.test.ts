@@ -121,7 +121,9 @@ describe("conversation panel", () => {
     });
 
     expect(container.querySelector("textarea")).toBeNull();
-    const buttons = container.querySelectorAll("button");
+    const buttons = container.querySelectorAll<HTMLButtonElement>(
+      ".treetalk-empty-action"
+    );
     buttons[0]?.click();
     buttons[1]?.click();
     expect(createConversation).toHaveBeenCalledOnce();
@@ -1912,5 +1914,225 @@ describe("conversation panel", () => {
     expect(button?.title).toBe("当前服务商暂不支持联网模式");
   });
 
+  it("clears every draft reference from one composer button", async () => {
+    const conversation = validConversation();
+    const noteContext = (quote: string): NoteSelectionContext => ({
+      sourceType: "note",
+      filePath: `课程/${quote}.md`,
+      fileName: `${quote}.md`,
+      basis: "note-source-v1",
+      startOffset: 0,
+      endOffset: quote.length,
+      quote,
+      prefix: "",
+      suffix: "",
+      contentHash: `hash-${quote}`
+    });
+    conversation.nodes.child?.draft.selectionContexts.push(
+      noteContext("引用一"),
+      noteContext("引用二")
+    );
+    const store = new ConversationSessionStore(conversation);
+    const container = document.createElement("div");
+
+    renderConversationPanel(container, store);
+
+    const clear = container.querySelector<HTMLButtonElement>(
+      ".treetalk-clear-contexts"
+    );
+    expect(clear?.disabled).toBe(false);
+    clear?.click();
+
+    await vi.waitFor(() =>
+      expect(
+        store.getSnapshot().nodes.child?.draft.selectionContexts
+      ).toEqual([])
+    );
+    await vi.waitFor(() => expect(clear?.disabled).toBe(true));
+  });
+
+  it("keeps the clear-reference button disabled without references", () => {
+    const container = document.createElement("div");
+
+    renderConversationPanel(container, new ConversationSessionStore(validConversation()));
+
+    expect(
+      container.querySelector<HTMLButtonElement>(".treetalk-clear-contexts")
+        ?.disabled
+    ).toBe(true);
+  });
+
+  it("synchronizes the composer default-prompt button through one global control", async () => {
+    const container = document.createElement("div");
+    let enabled = false;
+    let hasPrompt = true;
+    const listeners = new Set<() => void>();
+    const control = {
+      isEnabled: () => enabled,
+      hasPrompt: () => hasPrompt,
+      setEnabled: (next: boolean) => {
+        enabled = next;
+        for (const listener of listeners) listener();
+      },
+      subscribe: (listener: () => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      }
+    };
+
+    renderConversationPanel(
+      container,
+      new ConversationSessionStore(validConversation()),
+      undefined,
+      undefined,
+      undefined,
+      { defaultPrompt: control }
+    );
+
+    const button = container.querySelector<HTMLButtonElement>(
+      ".treetalk-default-prompt-toggle"
+    );
+    expect(button?.getAttribute("aria-pressed")).toBe("false");
+    button?.click();
+    await vi.waitFor(() =>
+      expect(button?.getAttribute("aria-pressed")).toBe("true")
+    );
+
+    hasPrompt = false;
+    for (const listener of listeners) listener();
+    await vi.waitFor(() => expect(button?.disabled).toBe(true));
+    expect(button?.title).toContain("未配置默认提示词");
+  });
+
+  it("shows the conversation path in the same header row as tree capture", () => {
+    const captureTree = vi.fn(() => Promise.resolve());
+    const container = document.createElement("div");
+
+    renderConversationPanel(
+      container,
+      new ConversationSessionStore(validConversation()),
+      { send: vi.fn(() => Promise.resolve()), captureTree }
+    );
+
+    const header = container.querySelector(".treetalk-conversation-header");
+    const segments = [
+      ...(header?.querySelectorAll(".treetalk-conversation-path-segment") ?? [])
+    ].map((segment) => segment.textContent);
+
+    expect(segments).toEqual(["TCP 学习", "TCP 为什么可靠？", "三次握手"]);
+    expect(
+      header?.querySelector(".treetalk-conversation-path")?.getAttribute("title")
+    ).toBe("TCP 学习 › TCP 为什么可靠？ › 三次握手");
+    expect(
+      header?.querySelector(".treetalk-conversation-header-actions")
+        ?.querySelector(".treetalk-capture-tree")
+    ).toBeTruthy();
+  });
+
+  it("follows the selected node in the header path", async () => {
+    const conversation = validConversation();
+    const store = new ConversationSessionStore(conversation);
+    const container = document.createElement("div");
+
+    renderConversationPanel(container, store, {
+      send: vi.fn(() => Promise.resolve())
+    });
+    store.update((current) => ({ ...current, currentNodeId: "root" }));
+
+    await vi.waitFor(() =>
+      expect(
+        [
+          ...container.querySelectorAll(".treetalk-conversation-path-segment")
+        ].map((segment) => segment.textContent)
+      ).toEqual(["TCP 学习", "TCP 为什么可靠？"])
+    );
+  });
+
+  it("keeps only the deepest steps of a long branch in the header path", () => {
+    const conversation = validConversation();
+    let parentId = "child";
+    for (const id of ["step-1", "step-2", "step-3"]) {
+      conversation.nodes[id] = {
+        id,
+        parentId,
+        childIds: [],
+        title: `第 ${id} 步`,
+        messages: [],
+        draft: { text: "", mode: "continue", selectionContexts: [] },
+        createdAt: conversation.createdAt,
+        updatedAt: conversation.updatedAt
+      };
+      conversation.nodes[parentId]?.childIds.push(id);
+      parentId = id;
+    }
+    conversation.currentNodeId = parentId;
+    const container = document.createElement("div");
+
+    renderConversationPanel(container, new ConversationSessionStore(conversation), {
+      send: vi.fn(() => Promise.resolve())
+    });
+
+    expect(
+      [
+        ...container.querySelectorAll(".treetalk-conversation-path-segment")
+      ].map((segment) => segment.textContent)
+    ).toEqual(["TCP 学习", "…", "第 step-1 步", "第 step-2 步", "第 step-3 步"]);
+  });
+
+  it("truncates the header path instead of widening the bar", () => {
+    const css = readFileSync("styles.css", "utf8");
+    expect(css).toMatch(
+      /\.treetalk-conversation-path\s*\{[^}]*min-width:\s*0;[^}]*overflow:\s*hidden;/su
+    );
+    expect(css).toMatch(
+      /\.treetalk-conversation-path\s*\{[^}]*justify-content:\s*center;/su
+    );
+    expect(css).toMatch(
+      /\.treetalk-conversation-path-segment\s*\{[^}]*text-overflow:\s*ellipsis;/su
+    );
+    expect(css).toMatch(
+      /\.treetalk-conversation-header\s*\{[^}]*display:\s*flex;[^}]*align-items:\s*center;/su
+    );
+  });
+
+  it("toggles the conversation list from the header button", () => {
+    const container = document.createElement("div");
+    let collapsed = true;
+    const listeners = new Set<() => void>();
+    const toggle = vi.fn(() => {
+      collapsed = !collapsed;
+      for (const listener of listeners) listener();
+    });
+    const control = {
+      isCollapsed: () => collapsed,
+      toggle,
+      subscribe: (listener: () => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      }
+    };
+
+    renderConversationPanel(
+      container,
+      new ConversationSessionStore(validConversation()),
+      { send: vi.fn(() => Promise.resolve()) },
+      undefined,
+      undefined,
+      { conversationList: control }
+    );
+
+    const button = container.querySelector<HTMLButtonElement>(
+      ".treetalk-list-toggle"
+    );
+    expect(button?.hidden).toBe(false);
+    expect(button?.getAttribute("aria-expanded")).toBe("false");
+    expect(button?.getAttribute("aria-label")).toBe("展开对话列表");
+
+    button?.click();
+
+    expect(toggle).toHaveBeenCalledOnce();
+    expect(button?.getAttribute("aria-expanded")).toBe("true");
+    expect(button?.getAttribute("aria-label")).toBe("收起对话列表");
+  });
 
 });

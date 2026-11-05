@@ -18,6 +18,7 @@ function actions(
     create: vi.fn(() => Promise.resolve()),
     close: vi.fn(() => Promise.resolve()),
     reorder: vi.fn(),
+    rename: vi.fn(() => Promise.resolve()),
     ...overrides
   };
 }
@@ -205,6 +206,76 @@ describe("conversation tree switcher", () => {
     expect(
       row?.querySelector<HTMLButtonElement>(".treetalk-space-close")?.disabled
     ).toBe(true);
+  });
+
+  it("renames a space from its row without selecting or collapsing", () => {
+    const container = document.createElement("div");
+    const store = conversationTabsStore("one", "two");
+    const rename = vi.fn(() => Promise.resolve());
+    renderConversationSwitcher(container, store, actions({ rename }));
+    container.querySelector<HTMLButtonElement>(".treetalk-space-trigger")?.click();
+
+    container
+      .querySelector<HTMLButtonElement>(
+        "[data-conversation-id='two'] .treetalk-space-rename"
+      )
+      ?.click();
+
+    expect(rename).toHaveBeenCalledWith("two");
+    expect(store.getSnapshot().activeTabId).toBe("one");
+    expect(container.querySelector(".treetalk-space-list")).toBeTruthy();
+    expect(
+      container
+        .querySelector(".treetalk-space-trigger")
+        ?.getAttribute("aria-expanded")
+    ).toBe("true");
+  });
+
+  it("renames a space by double-clicking its title", () => {
+    const container = document.createElement("div");
+    const rename = vi.fn(() => Promise.resolve());
+    renderConversationSwitcher(
+      container,
+      conversationTabsStore("one", "two"),
+      actions({ rename })
+    );
+    container.querySelector<HTMLButtonElement>(".treetalk-space-trigger")?.click();
+
+    container
+      .querySelector<HTMLButtonElement>(
+        "[data-conversation-id='one'] .treetalk-space-select"
+      )
+      ?.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+
+    expect(rename).toHaveBeenCalledWith("one");
+  });
+
+  it("disables renaming while a tab is busy", () => {
+    const container = document.createElement("div");
+    const store = conversationTabsStore("one", "two");
+    store.updateTab("two", (tab) => ({ ...tab, lifecycle: "closing" }));
+    renderConversationSwitcher(container, store, actions());
+    container.querySelector<HTMLButtonElement>(".treetalk-space-trigger")?.click();
+
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        "[data-conversation-id='two'] .treetalk-space-rename"
+      )?.disabled
+    ).toBe(true);
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        "[data-conversation-id='one'] .treetalk-space-rename"
+      )?.disabled
+    ).toBe(false);
+  });
+
+  it("scrolls the space list instead of growing past the viewport", () => {
+    const css = readFileSync("styles.css", "utf8");
+    const rule =
+      css.match(/\.treetalk-space-list\s*\{([^}]*)\}/su)?.[1] ?? "";
+
+    expect(rule).toContain("max-height");
+    expect(rule).toContain("overflow-y: auto");
   });
 
   it("renders no virtual first row when no conversation is open", () => {

@@ -72,6 +72,10 @@ function comparableProjection(value: string): {
   return { text: characters.join(""), sourceOffsets };
 }
 
+export function normalizeComparableMarkdown(value: string): string {
+  return comparableProjection(value).text;
+}
+
 function resolveQuoteRange(content: string, quote: string): {
   start: number;
   end: number;

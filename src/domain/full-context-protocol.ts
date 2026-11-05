@@ -15,6 +15,25 @@ export const FULL_CONTEXT_BASE_SYSTEM_PROMPT = [
 
 const OBSIDIAN_MARKDOWN_SECTION_TITLE = "[Obsidian Markdown 格式规则]";
 
+export const DEFAULT_PROMPT_SECTION_TITLE = "[默认提示词]";
+
+/**
+ * Appends the user-configured default prompt to the system prompt. An empty or
+ * whitespace-only prompt leaves the system prompt untouched, so the composer
+ * toggle cannot change behaviour while nothing is configured.
+ */
+export function withDefaultPrompt(
+  systemPrompt: string,
+  defaultPrompt: string
+): string {
+  const trimmed = defaultPrompt.trim();
+  if (trimmed.length === 0) return systemPrompt;
+  if (systemPrompt.trim().length === 0) {
+    return [DEFAULT_PROMPT_SECTION_TITLE, trimmed].join("\n\n");
+  }
+  return [systemPrompt, DEFAULT_PROMPT_SECTION_TITLE, trimmed].join("\n\n");
+}
+
 export function buildTreeTalkSystemPrompt(
   markdownCompatibilityEnabled: boolean
 ): string {

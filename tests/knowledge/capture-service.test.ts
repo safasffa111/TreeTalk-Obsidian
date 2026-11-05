@@ -213,6 +213,33 @@ describe("KnowledgeCaptureService", () => {
     expect(updated).not.toContain("treetalk-");
   });
 
+  it("uses the source snapshot for a note selected in rendered mode", async () => {
+    const source = "前文 **网络层**负责寻址。";
+    const visible = "前文 网络层负责寻址。";
+    const vault = new FakeVault({ "Notes/network.md": source });
+    const conversation = conversationWithAnswer();
+    const child = conversation.nodes.child;
+    const question = child?.messages.find((message) => message.id === "question");
+    if (question === undefined) throw new Error("Missing question");
+    question.selectionContexts = [
+      await createNoteSelectionContext({
+        filePath: "Notes/network.md",
+        fileName: "network.md",
+        basis: "note-rendered-text-v1",
+        visibleText: visible,
+        sourceText: source,
+        startOffset: 3,
+        endOffset: 10
+      })
+    ];
+    const service = new KnowledgeCaptureService(vault, "TreeTalk 知识", "TreeTalk");
+
+    await service.capture({ scope: "tree", conversation }, NOW);
+    expect(await vault.read("Notes/network.md")).toContain(
+      "**网络层**负责寻址 [[TreeTalk/"
+    );
+  });
+
   it("places a source-note selection link after the complete formula block", async () => {
     const body = "$$\na^2+b^2=c^2\n$$\n\n后文";
     const vault = new FakeVault({ "Notes/math.md": body });
@@ -341,6 +368,28 @@ describe("KnowledgeCaptureService", () => {
     expect(path).toBe("TreeTalk 知识/三次握手.md");
     expect(await vault.read(path)).toBe(
       "# 三次握手\n\n接收方通过 ACK 确认已经收到的数据。\n"
+    );
+  });
+
+  it("uses a custom file name for an answer capture", async () => {
+    const vault = new FakeVault();
+    const service = new KnowledgeCaptureService(vault, "TreeTalk 知识", "TreeTalk");
+    const conversation = conversationWithAnswer();
+
+    const path = await service.capture(
+      {
+        scope: "answer",
+        conversation,
+        nodeId: "child",
+        messageId: "answer",
+        fileName: "ACK 机制总结.md"
+      },
+      NOW
+    );
+
+    expect(path).toBe("TreeTalk 知识/ACK 机制总结.md");
+    expect(await vault.read(path)).toBe(
+      "# ACK 机制总结\n\n接收方通过 ACK 确认已经收到的数据。\n"
     );
   });
 
